@@ -104,3 +104,32 @@ pub fn load_config(path: &str) -> Result<Config> {
 
     Ok(config)
 }
+
+pub fn validate_config(config: &Config) -> Result<(), String> {
+    // Validate backends have valid addresses
+    for backend in &config.backends {
+        if backend.address.parse::<std::net::SocketAddr>().is_err() {
+            return Err(format!("Invalid backend address: {}", backend.address));
+        }
+        if backend.tags.is_empty() {
+            return Err(format!("Backend {} has no tags", backend.id));
+        }
+    }
+
+    // Validate virtual hosts have valid backend tags
+    let all_tags: std::collections::HashSet<&String> = config.backends
+        .iter()
+        .flat_map(|b| &b.tags)
+        .collect();
+
+    for vh in &config.virtual_hosts {
+        if !all_tags.contains(&vh.enabled_backends_tag) {
+            return Err(format!(
+                "Domain {} references non-existent tag '{}'",
+                vh.domain, vh.enabled_backends_tag
+            ));
+        }
+    }
+
+    Ok(())
+}

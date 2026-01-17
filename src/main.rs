@@ -35,6 +35,8 @@ async fn main() -> Result<()> {
 
     // Load configuration
     let config = config::load_config(&cli.config)?;
+    config::validate_config(&config)
+        .map_err(|e| anyhow::anyhow!("Invalid config: {}", e))?;
     let _guard = observability::logging::init_logging(&config.logging);
 
     info!("Starting Pingora Virtual Host Proxy...");
