@@ -1,65 +1,50 @@
-use crate::config::{BackendConfig, Config, VhostConfig};
+use crate::config::{Backend, VirtualHost};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum BackendHealth {
-    Healthy,
-    Unhealthy,
-    Unknown,
-}
-
-impl Default for BackendHealth {
-    fn default() -> Self {
-        Self::Unknown
-    }
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct BackendStatus {
-    pub health: BackendHealth,
+#[derive(Clone, Debug)]
+pub struct BackendHealth {
+    pub healthy: bool,
     pub consecutive_failures: u32,
     pub consecutive_successes: u32,
     pub last_check: Option<chrono::DateTime<chrono::Utc>>,
 }
 
+#[derive(Clone)]
 pub struct AppState {
-    pub config: Arc<RwLock<Config>>,
-    pub vhost_configs: Arc<RwLock<HashMap<String, VhostConfig>>>,
-    pub backend_status: Arc<RwLock<HashMap<String, BackendStatus>>>,
+    pub virtual_hosts: Arc<RwLock<HashMap<String, VirtualHost>>>,
+    pub backends: Arc<RwLock<HashMap<String, Backend>>>,
+    pub backend_health: Arc<RwLock<HashMap<String, BackendHealth>>>,
 }
 
 impl AppState {
-    pub fn new(config: Config) -> Self {
-        let vhost_configs = config.vhosts.clone();
+    pub fn new() -> Self {
         Self {
-            config: Arc::new(RwLock::new(config)),
-            vhost_configs: Arc::new(RwLock::new(vhost_configs)),
-            backend_status: Arc::new(RwLock::new(HashMap::new())),
+            virtual_hosts: Arc::new(RwLock::new(HashMap::new())),
+            backends: Arc::new(RwLock::new(HashMap::new())),
+            backend_health: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
-    pub async fn get_vhost_config(&self, domain: &str) -> Option<VhostConfig> {
-        self.vhost_configs.read().await.get(domain).cloned()
-    }
+    pub async fn from_config(
+        virtual_hosts: Vec<VirtualHost>,
+        backends: Vec<Backend>,
+    ) -> Self {
+        let vh_map: HashMap<String, VirtualHost> = virtual_hosts
+            .into_iter()
+            .map(|vh| (vh.domain.clone(), vh))
+            .collect();
 
-    pub async fn update_vhost_config(&self, domain: String, config: VhostConfig) {
-        let mut vhosts = self.vhost_configs.write().await;
-        vhosts.insert(domain, config);
-    }
+        let backend_map: HashMap<String, Backend> = backends
+            .into_iter()
+            .map(|b| (b.id.clone(), b))
+            .collect();
 
-    pub async fn remove_vhost_config(&self, domain: &str) {
-        let mut vhosts = self.vhost_configs.write().await;
-        vhosts.remove(domain);
-    }
-
-    pub async fn get_backend_status(&self, backend_id: &str) -> Option<BackendStatus> {
-        self.backend_status.read().await.get(backend_id).cloned()
-    }
-
-    pub async fn update_backend_status(&self, backend_id: String, status: BackendStatus) {
-        let mut backends = self.backend_status.write().await;
-        backends.insert(backend_id, status);
+        Self {
+            virtual_hosts: Arc::new(RwLock::new(vh_map)),
+            backends: Arc::new(RwLock::new(backend_map)),
+            backend_health: Arc::new(RwLock::new(HashMap::new())),
+        }
     }
 }

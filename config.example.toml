@@ -1,65 +1,35 @@
 [proxy]
-listen = "0.0.0.0:8080"
-threads = 4
-client_timeout_secs = 30
+listen_addr = "0.0.0.0:443"
+listen_addr_http = "0.0.0.0:80"
+management_api_addr = "127.0.0.1:8080"
 
-[management]
-listen = "127.0.0.1:9090"
-api_token = "change-me-in-production"
-enable_tls = false
-cert_path = ""
-key_path = ""
-
-[vhosts.example.com]
-domain = "example.com"
-
-[[vhosts.example.com.routes]]
-path_prefix = "/api"
-backend_id = "backend1"
-
-[[vhosts.example.com.routes]]
-path_prefix = "/"
-backend_id = "backend2"
-
-[[vhosts.example.com.backends]]
-id = "backend1"
-address = "192.168.1.10"
-port = 8080
-weight = 1
-
-[vhosts.example.com.backends.health_check]
-path = "/health"
-interval_secs = 10
-timeout_secs = 5
-unhealthy_threshold = 3
-healthy_threshold = 3
-
-[[vhosts.example.com.backends]]
-id = "backend2"
-address = "192.168.1.11"
-port = 8080
-weight = 1
-
-[vhosts.example.com.backends.health_check]
-path = "/health"
-interval_secs = 10
-timeout_secs = 5
-unhealthy_threshold = 3
-healthy_threshold = 3
-
-[vhosts.example.com.tls]
-enabled = true
-cert_type = "rsa"
-cert_path = ""
-key_path = ""
-
-[vhosts.example.com.tls.lets_encrypt]
+[lets_encrypt]
 email = "admin@example.com"
-staging = false
-cache_dir = "./certs/le"
+staging = true
+cache_dir = "/etc/pingora-ssl/certs"
 
-[vhosts.example.com.ab_test]
-header_name = "X-AB-Test"
-header_value_a = "A"
-header_value_b = "B"
-percentage_b = 50
+[logging]
+level = "info"
+format = "text"
+output = "console"
+file_path = "/var/log/pingora-proxy/proxy.log"
+
+[metrics]
+enabled = true
+listen_addr = "0.0.0.0:9090"
+
+[health_check]
+interval_secs = 10
+timeout_secs = 5
+unhealthy_threshold = 3
+healthy_threshold = 2
+
+[[virtual_hosts]]
+domain = "example.com"
+enabled_backends_tag = "a"
+http_to_https = true
+
+[[backends]]
+id = "web-v1"
+address = "localhost:3001"
+tags = ["a"]
