@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use tracing::debug;
 
 /// Health status of a backend
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -219,6 +220,55 @@ impl HealthChecker {
             .iter()
             .map(|(id, state)| (id.clone(), state.status))
             .collect()
+    }
+
+    /// Perform an HTTP health check against a backend
+    ///
+    /// Makes an HTTP GET request to the backend's health endpoint and records
+    /// the result as a success or failure based on the response status.
+    ///
+    /// # Arguments
+    /// * `backend_id` - Unique identifier for the backend
+    /// * `address` - Backend address (e.g., "192.168.1.100:8080")
+    /// * `health_path` - Health check endpoint path (e.g., "/health")
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use pingora_vhost::health_check::HealthChecker;
+    /// # use std::time::Duration;
+    /// # async fn example() {
+    /// let checker = HealthChecker::new(2, 3, Duration::from_secs(10));
+    /// checker.check_backend_http("backend-1", "192.168.1.100:8080", "/health").await;
+    /// # }
+    /// ```
+    pub async fn check_backend_http(&self, backend_id: &str, address: &str, health_path: &str) {
+        let url = format!("http://{}{}", address, health_path);
+
+        match reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(5))
+            .build()
+        {
+            Ok(client) => {
+                match client.get(&url).send().await {
+                    Ok(response) => {
+                        if response.status().is_success() {
+                            self.record_success(backend_id).await;
+                        } else {
+                            debug!("Backend {} returned status {}", backend_id, response.status());
+                            self.record_failure(backend_id).await;
+                        }
+                    }
+                    Err(e) => {
+                        debug!("Failed to check backend {}: {}", backend_id, e);
+                        self.record_failure(backend_id).await;
+                    }
+                }
+            }
+            Err(e) => {
+                debug!("Failed to build HTTP client: {}", e);
+                self.record_failure(backend_id).await;
+            }
+        }
     }
 }
 
