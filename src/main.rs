@@ -1,10 +1,20 @@
-mod config;
-mod state;
-
 use anyhow::Result;
+use tracing::info;
+
+mod config;
+mod observability;
+mod state;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    println!("Pingora Virtual Host Proxy starting...");
+    let _guard = observability::logging::init_logging(&config::LoggingConfig {
+        level: "info".to_string(),
+        format: "text".to_string(),
+        output: "console".to_string(),
+        file_path: None,
+    });
+
+    info!("Pingora Virtual Host Proxy starting...");
+
     Ok(())
 }
