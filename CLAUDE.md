@@ -295,7 +295,7 @@ Tags are the key to A/B testing and canary deployments:
 
 **Metrics**:
 - Prometheus format (widely adopted)
-- Exposed on separate port (9090 by default)
+- Exposed at `/api/v1/metrics` on management API port (8080 by default)
 - Counters for request totals
 - Histograms for request latency
 - Gauges for health status
@@ -455,7 +455,7 @@ curl -X POST http://127.0.0.1:8080/api/v1/domains/example.com/switch \
 curl http://127.0.0.1:8080/api/v1/backends
 
 # View health status in metrics
-curl http://127.0.0.1:9090/api/v1/metrics | grep health_check
+curl http://127.0.0.1:8080/api/v1/metrics | grep health_check
 ```
 
 ### Viewing Logs

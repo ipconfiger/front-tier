@@ -23,7 +23,7 @@ A high-performance, configurable virtual host proxy built on Cloudflare's Pingor
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
+git clone [Replace with your repository URL]
 cd front_tier
 ```
 
@@ -293,7 +293,7 @@ curl -X POST http://127.0.0.1:8080/api/v1/domains/app.example.com/switch \
   -d '{"new_tag": "b"}'
 ```
 
-3. **Monitor metrics** at `http://127.0.0.1:9090/metrics`
+3. **Monitor metrics** at `http://127.0.0.1:8080/api/v1/metrics`
 4. **Rollback if needed** by switching back to tag "a":
 ```bash
 curl -X POST http://127.0.0.1:8080/api/v1/domains/app.example.com/switch \
@@ -321,7 +321,7 @@ Then use your DNS or load balancer to route 10% of traffic to the canary subdoma
 
 ## Metrics
 
-The proxy exposes Prometheus-compatible metrics on the configured metrics port (default: 9090). Available metrics include:
+The proxy exposes Prometheus-compatible metrics at `/api/v1/metrics` on the management API server (default port: 8080). Available metrics include:
 
 - `proxy_requests_total`: Total number of proxied requests
 - `proxy_latency_seconds`: Request latency histogram
@@ -332,7 +332,7 @@ The proxy exposes Prometheus-compatible metrics on the configured metrics port (
 ### Viewing Metrics
 
 ```bash
-curl http://127.0.0.1:9090/api/v1/metrics
+curl http://127.0.0.1:8080/api/v1/metrics
 ```
 
 ### Prometheus Configuration
@@ -343,7 +343,8 @@ Add to your `prometheus.yml`:
 scrape_configs:
   - job_name: 'pingora-proxy'
     static_configs:
-      - targets: ['proxy-server:9090']
+      - targets: ['proxy-server:8080']
+    metrics_path: '/api/v1/metrics'
 ```
 
 ## Development
