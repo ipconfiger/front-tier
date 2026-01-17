@@ -2,15 +2,26 @@ use anyhow::Result;
 use axum::{routing::get, Router};
 use std::net::SocketAddr;
 use tracing::info;
+use crate::state::AppState;
+use crate::api::domains;
 
 /// Create the API server router with all routes
 pub fn create_api_server(bind_addr: &str) -> Result<(SocketAddr, Router)> {
     // Parse the bind address
     let addr: SocketAddr = bind_addr.parse()?;
 
+    // Create application state
+    let state = AppState::new();
+
     // Build the router with CORS support
     let app = Router::new()
         .route("/api/v1/health", get(health_check))
+        .route("/api/v1/domains", get(domains::list_domains).post(domains::add_domain))
+        .route("/api/v1/domains/:domain",
+               get(domains::get_domain)
+                   .put(domains::update_domain)
+                   .delete(domains::delete_domain))
+        .with_state(state)
         .layer(tower_http::cors::CorsLayer::permissive());
 
     info!("API server configured to bind on {}", addr);
@@ -22,7 +33,7 @@ pub fn create_api_server(bind_addr: &str) -> Result<(SocketAddr, Router)> {
 pub async fn run_api_server(addr: SocketAddr, app: Router) -> Result<()> {
     let listener = tokio::net::TcpListener::bind(addr).await?;
     info!("API server listening on {}", addr);
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app.into_make_service()).await?;
     Ok(())
 }
 
