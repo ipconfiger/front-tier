@@ -31,7 +31,10 @@ async fn test_acme_challenge_endpoint_integration() {
         .insert(challenge.token.clone(), challenge);
 
     // Create API server with test state
-    let (_addr, app) = server::create_api_server("127.0.0.1:0", state).unwrap();
+    let cert_manager = Arc::new(
+        pingora_vhost::tls::certificate_manager::CertificateManager::new(None)
+    );
+    let (_addr, app) = server::create_api_server("127.0.0.1:0", state, cert_manager).unwrap();
 
     // Test valid challenge request
     let response = app
@@ -57,7 +60,10 @@ async fn test_acme_challenge_endpoint_integration() {
 #[tokio::test]
 async fn test_acme_challenge_endpoint_not_found() {
     let state = AppState::new();
-    let (_addr, app) = server::create_api_server("127.0.0.1:0", state).unwrap();
+    let cert_manager = Arc::new(
+        pingora_vhost::tls::certificate_manager::CertificateManager::new(None)
+    );
+    let (_addr, app) = server::create_api_server("127.0.0.1:0", state, cert_manager).unwrap();
 
     // Test request for non-existent token
     let response = app
@@ -92,7 +98,10 @@ async fn test_acme_challenge_endpoint_expired() {
         .await
         .insert(expired_challenge.token.clone(), expired_challenge);
 
-    let (_addr, app) = server::create_api_server("127.0.0.1:0", state).unwrap();
+    let cert_manager = Arc::new(
+        pingora_vhost::tls::certificate_manager::CertificateManager::new(None)
+    );
+    let (_addr, app) = server::create_api_server("127.0.0.1:0", state, cert_manager).unwrap();
 
     // Test request for expired token
     let response = app
@@ -126,7 +135,10 @@ async fn test_acme_challenge_content_type() {
         .await
         .insert(challenge.token.clone(), challenge);
 
-    let (_addr, app) = server::create_api_server("127.0.0.1:0", state).unwrap();
+    let cert_manager = Arc::new(
+        pingora_vhost::tls::certificate_manager::CertificateManager::new(None)
+    );
+    let (_addr, app) = server::create_api_server("127.0.0.1:0", state, cert_manager).unwrap();
 
     // Test request and check Content-Type header
     let response = app
@@ -180,7 +192,10 @@ async fn test_acme_challenge_multiple_domains() {
         .await
         .insert(challenge2.token.clone(), challenge2);
 
-    let (_addr, app) = server::create_api_server("127.0.0.1:0", state).unwrap();
+    let cert_manager = Arc::new(
+        pingora_vhost::tls::certificate_manager::CertificateManager::new(None)
+    );
+    let (_addr, app) = server::create_api_server("127.0.0.1:0", state, cert_manager).unwrap();
 
     // Test first challenge
     let response1 = app

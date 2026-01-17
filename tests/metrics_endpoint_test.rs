@@ -8,7 +8,10 @@ use tower::ServiceExt;
 #[tokio::test]
 async fn test_metrics_endpoint() {
     let state = AppState::new();
-    let (_addr, app) = server::create_api_server("127.0.0.1:0", state).unwrap();
+    let cert_manager = std::sync::Arc::new(
+        pingora_vhost::tls::certificate_manager::CertificateManager::new(None)
+    );
+    let (_addr, app) = server::create_api_server("127.0.0.1:0", state, cert_manager).unwrap();
 
     // Build a request to hit the metrics endpoint
     let request = Request::builder()

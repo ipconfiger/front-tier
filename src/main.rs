@@ -10,6 +10,7 @@ mod health_check;
 mod observability;
 mod proxy;
 mod state;
+mod tls;
 
 #[derive(Parser)]
 #[command(name = "pingora-vhost")]
@@ -47,11 +48,17 @@ async fn main() -> Result<()> {
         config.backends.clone(),
     ).await);
 
+    // Initialize certificate manager
+    let cert_manager = Arc::new(tls::certificate_manager::CertificateManager::new(
+        config.lets_encrypt.clone(),
+    ));
+
     // Start management API
     let api_addr = config.proxy.management_api_addr.clone();
     let api_state = (*state).clone();
+    let api_cert_manager = Arc::clone(&cert_manager);
     tokio::spawn(async move {
-        let (addr, app) = api::server::create_api_server(&api_addr, api_state).unwrap();
+        let (addr, app) = api::server::create_api_server(&api_addr, api_state, api_cert_manager).unwrap();
         info!("Management API listening on http://{}", addr);
         if let Err(e) = api::server::run_api_server(addr, app).await {
             error!("API server error: {}", e);

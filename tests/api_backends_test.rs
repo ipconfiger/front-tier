@@ -8,7 +8,10 @@ use tower::ServiceExt;
 // Helper function to create API server with fresh state
 fn create_test_api_server() -> (String, axum::Router) {
     let state = pingora_vhost::state::AppState::new();
-    let (addr, app) = pingora_vhost::api::server::create_api_server("127.0.0.1:0", state).unwrap();
+    let cert_manager = std::sync::Arc::new(
+        pingora_vhost::tls::certificate_manager::CertificateManager::new(None)
+    );
+    let (addr, app) = pingora_vhost::api::server::create_api_server("127.0.0.1:0", state, cert_manager).unwrap();
     (addr.to_string(), app)
 }
 

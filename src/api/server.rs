@@ -6,11 +6,16 @@ use tracing::info;
 use crate::state::AppState;
 use crate::api::domains;
 use crate::api::backends;
+use crate::api::certificates;
 use crate::observability::metrics::MetricsCollector;
-use crate::tls::handle_acme_challenge;
+use crate::tls::{handle_acme_challenge, certificate_manager::CertificateManager};
 
 /// Create the API server router with all routes
-pub fn create_api_server(bind_addr: &str, state: AppState) -> Result<(SocketAddr, Router)> {
+pub fn create_api_server(
+    bind_addr: &str,
+    state: AppState,
+    cert_manager: Arc<CertificateManager>,
+) -> Result<(SocketAddr, Router)> {
     // Parse the bind address
     let addr: SocketAddr = bind_addr.parse()?;
     let metrics = Arc::new(MetricsCollector::new());
@@ -32,8 +37,10 @@ pub fn create_api_server(bind_addr: &str, state: AppState) -> Result<(SocketAddr
                get(backends::get_backend)
                    .put(backends::update_backend)
                    .delete(backends::delete_backend))
+        .route("/api/v1/certificates", get(certificates::list_certificates))
+        .route("/api/v1/certificates/:domain/reload", post(certificates::reload_certificate))
         .route("/api/v1/metrics", get(metrics_handler))
-        .with_state((state, metrics));
+        .with_state((state, metrics, cert_manager));
 
     // Build ACME challenge router with separate state
     let acme_routes = Router::new()
@@ -65,7 +72,9 @@ async fn health_check() -> &'static str {
 }
 
 /// Prometheus metrics endpoint
-async fn metrics_handler(State((_, metrics)): State<(AppState, Arc<MetricsCollector>)>) -> Response {
+async fn metrics_handler(
+    State((_, metrics, _)): State<(AppState, Arc<MetricsCollector>, Arc<CertificateManager>)>
+) -> Response {
     Response::new(axum::body::Body::from(metrics.export_metrics()))
 }
 
@@ -76,7 +85,8 @@ mod tests {
     #[test]
     fn test_create_api_server_valid_addr() {
         let state = AppState::new();
-        let result = create_api_server("127.0.0.1:0", state);
+        let cert_manager = Arc::new(CertificateManager::new(None));
+        let result = create_api_server("127.0.0.1:0", state, cert_manager);
         assert!(result.is_ok());
         let (addr, _app) = result.unwrap();
         assert_eq!(addr.port(), 0);
@@ -85,7 +95,8 @@ mod tests {
     #[test]
     fn test_create_api_server_invalid_addr() {
         let state = AppState::new();
-        let result = create_api_server("invalid", state);
+        let cert_manager = Arc::new(CertificateManager::new(None));
+        let result = create_api_server("invalid", state, cert_manager);
         assert!(result.is_err());
     }
 }

@@ -8,6 +8,7 @@ use std::sync::Arc;
 use crate::config::VirtualHost;
 use crate::state::AppState;
 use crate::observability::metrics::MetricsCollector;
+use crate::tls::certificate_manager::CertificateManager;
 use tracing::info;
 
 /// Request payload for adding a domain
@@ -37,6 +38,8 @@ impl From<DomainRequest> for VirtualHost {
             domain: req.domain,
             enabled_backends_tag: req.enabled_backends_tag,
             http_to_https: req.http_to_https,
+            tls_enabled: false,
+            certificate_source: None,
         }
     }
 }
@@ -60,7 +63,9 @@ impl From<VirtualHost> for DomainResponse {
 }
 
 /// GET /api/v1/domains - List all domains
-pub async fn list_domains(State((state, _)): State<(AppState, Arc<MetricsCollector>)>) -> Result<Json<Vec<DomainResponse>>, StatusCode> {
+pub async fn list_domains(
+    State((state, _, _)): State<(AppState, Arc<MetricsCollector>, Arc<CertificateManager>)>
+) -> Result<Json<Vec<DomainResponse>>, StatusCode> {
     let vhosts = state.virtual_hosts.read().await;
     let domains: Vec<DomainResponse> = vhosts
         .values()
@@ -73,7 +78,7 @@ pub async fn list_domains(State((state, _)): State<(AppState, Arc<MetricsCollect
 
 /// POST /api/v1/domains - Add a new domain
 pub async fn add_domain(
-    State((state, _)): State<(AppState, Arc<MetricsCollector>)>,
+    State((state, _, _)): State<(AppState, Arc<MetricsCollector>, Arc<CertificateManager>)>,
     Json(req): Json<DomainRequest>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let mut vhosts = state.virtual_hosts.write().await;
@@ -94,7 +99,7 @@ pub async fn add_domain(
 
 /// GET /api/v1/domains/:domain - Get a specific domain
 pub async fn get_domain(
-    State((state, _)): State<(AppState, Arc<MetricsCollector>)>,
+    State((state, _, _)): State<(AppState, Arc<MetricsCollector>, Arc<CertificateManager>)>,
     Path(domain): Path<String>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let vhosts = state.virtual_hosts.read().await;
@@ -113,7 +118,7 @@ pub async fn get_domain(
 
 /// PUT /api/v1/domains/:domain - Update a domain (partial update supported)
 pub async fn update_domain(
-    State((state, _)): State<(AppState, Arc<MetricsCollector>)>,
+    State((state, _, _)): State<(AppState, Arc<MetricsCollector>, Arc<CertificateManager>)>,
     Path(domain): Path<String>,
     Json(req): Json<UpdateDomainRequest>,
 ) -> Result<impl IntoResponse, StatusCode> {
@@ -132,6 +137,8 @@ pub async fn update_domain(
         domain: existing.domain,
         enabled_backends_tag: req.enabled_backends_tag.unwrap_or(existing.enabled_backends_tag),
         http_to_https: req.http_to_https.unwrap_or(existing.http_to_https),
+        tls_enabled: existing.tls_enabled,
+        certificate_source: existing.certificate_source,
     };
 
     let response = DomainResponse::from(updated_vh.clone());
@@ -143,7 +150,7 @@ pub async fn update_domain(
 
 /// DELETE /api/v1/domains/:domain - Delete a domain
 pub async fn delete_domain(
-    State((state, _)): State<(AppState, Arc<MetricsCollector>)>,
+    State((state, _, _)): State<(AppState, Arc<MetricsCollector>, Arc<CertificateManager>)>,
     Path(domain): Path<String>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let mut vhosts = state.virtual_hosts.write().await;
@@ -168,7 +175,7 @@ pub struct SwitchTagRequest {
 
 /// POST /api/v1/domains/:domain/switch - Switch backend tag for AB testing
 pub async fn switch_domain_tag(
-    State((state, _)): State<(AppState, Arc<MetricsCollector>)>,
+    State((state, _, _)): State<(AppState, Arc<MetricsCollector>, Arc<CertificateManager>)>,
     Path(domain): Path<String>,
     Json(req): Json<SwitchTagRequest>,
 ) -> Result<impl IntoResponse, StatusCode> {
@@ -187,6 +194,8 @@ pub async fn switch_domain_tag(
         domain: existing.domain,
         enabled_backends_tag: req.new_tag,
         http_to_https: existing.http_to_https,
+        tls_enabled: existing.tls_enabled,
+        certificate_source: existing.certificate_source,
     };
 
     let response = DomainResponse::from(updated_vh.clone());
