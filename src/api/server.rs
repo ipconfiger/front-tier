@@ -7,6 +7,7 @@ use crate::state::AppState;
 use crate::api::domains;
 use crate::api::backends;
 use crate::observability::metrics::MetricsCollector;
+use crate::tls::handle_acme_challenge;
 
 /// Create the API server router with all routes
 pub fn create_api_server(bind_addr: &str, state: AppState) -> Result<(SocketAddr, Router)> {
@@ -14,8 +15,11 @@ pub fn create_api_server(bind_addr: &str, state: AppState) -> Result<(SocketAddr
     let addr: SocketAddr = bind_addr.parse()?;
     let metrics = Arc::new(MetricsCollector::new());
 
-    // Build the router with CORS support
-    let app = Router::new()
+    // Clone challenges for ACME handler
+    let challenges = Arc::clone(&state.acme_challenges);
+
+    // Build the API router with CORS support
+    let api_routes = Router::new()
         .route("/api/v1/health", get(health_check))
         .route("/api/v1/domains", get(domains::list_domains).post(domains::add_domain))
         .route("/api/v1/domains/:domain",
@@ -29,7 +33,17 @@ pub fn create_api_server(bind_addr: &str, state: AppState) -> Result<(SocketAddr
                    .put(backends::update_backend)
                    .delete(backends::delete_backend))
         .route("/api/v1/metrics", get(metrics_handler))
-        .with_state((state, metrics))
+        .with_state((state, metrics));
+
+    // Build ACME challenge router with separate state
+    let acme_routes = Router::new()
+        .route("/.well-known/acme-challenge/:token", get(handle_acme_challenge))
+        .with_state(challenges);
+
+    // Combine both routers
+    let app = Router::new()
+        .merge(api_routes)
+        .merge(acme_routes)
         .layer(tower_http::cors::CorsLayer::permissive());
 
     info!("API server configured to bind on {}", addr);

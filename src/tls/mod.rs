@@ -2,8 +2,10 @@
 
 pub mod acme_manager;
 pub mod certificate_manager;
+pub mod challenge_handler;
 pub mod proxy_service;
 
 pub use acme_manager::{AcmeManager, ChallengeData};
 pub use certificate_manager::{CertificateManager, LoadedCertificate};
+pub use challenge_handler::handle_acme_challenge;
 pub use proxy_service::{MyProxyService, HttpRedirectService};

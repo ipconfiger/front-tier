@@ -1,4 +1,5 @@
 use crate::config::{Backend, VirtualHost};
+use crate::tls::ChallengeData;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -18,6 +19,9 @@ pub struct AppState {
     pub virtual_hosts: Arc<RwLock<HashMap<String, VirtualHost>>>,
     pub backends: Arc<RwLock<HashMap<String, Backend>>>,
     pub backend_health: Arc<RwLock<HashMap<String, BackendHealth>>>,
+    /// ACME challenge storage for Let's Encrypt domain verification
+    /// Maps challenge token to challenge data (key_auth, domain, expires_at)
+    pub acme_challenges: Arc<RwLock<HashMap<String, ChallengeData>>>,
 }
 
 impl Default for AppState {
@@ -26,6 +30,7 @@ impl Default for AppState {
             virtual_hosts: Arc::new(RwLock::new(HashMap::new())),
             backends: Arc::new(RwLock::new(HashMap::new())),
             backend_health: Arc::new(RwLock::new(HashMap::new())),
+            acme_challenges: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 }
@@ -60,6 +65,7 @@ impl AppState {
             virtual_hosts: Arc::new(RwLock::new(vh_map)),
             backends: Arc::new(RwLock::new(backend_map)),
             backend_health: Arc::new(RwLock::new(health_map)),
+            acme_challenges: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 }
