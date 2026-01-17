@@ -6,7 +6,10 @@ edition = "2021"
 [dependencies]
 # Note: Using git version due to sfv crate compatibility issues with pingora 0.1 on crates.io
 # See: https://github.com/cloudflare/pingora/issues/568 and /issues/595
-pingora = { git = "https://github.com/cloudflare/pingora" }
+# OpenSSL feature is required for SNI callbacks in TLS
+# Proxy feature is required for ProxyHttp trait and related functionality
+pingora = { git = "https://github.com/cloudflare/pingora", features = ["openssl", "proxy"] }
+pingora-proxy = { git = "https://github.com/cloudflare/pingora" }
 tokio = { version = "1.35", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -15,13 +18,13 @@ axum = "0.7"
 tower = { version = "0.4", features = ["util"] }
 tower-http = { version = "0.5", features = ["cors"] }
 prometheus = "0.13"
+async-trait = "0.1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
 tracing-appender = "0.2"
 rustls = "0.21"
 rustls-pemfile = "1.0"
 acme-lib = "0.8"
-pingora-rustls = { git = "https://github.com/cloudflare/pingora" }
 x509-parser = "0.15"
 notify = "6.0"
 anyhow = "1.0"
@@ -32,3 +35,4 @@ clap = { version = "4.4", features = ["derive"] }
 
 [dev-dependencies]
 http-body-util = "0.1"
+tempfile = "3"
