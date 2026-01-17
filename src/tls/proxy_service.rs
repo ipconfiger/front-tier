@@ -109,12 +109,17 @@ impl ProxyHttp for MyProxyService {
         session: &mut Session,
         ctx: &mut Self::CTX,
     ) -> Result<Box<HttpPeer>> {
-        // Extract Host header
+        // Extract host from Host header (HTTP/1.1) or URI authority (HTTP/2)
         let host_header = session
             .req_header()
             .headers
             .get("Host")
             .and_then(|h| h.to_str().ok())
+            .or_else(|| {
+                // HTTP/2 uses :authority pseudo-header, which may be normalized to Host
+                // Try getting from URI if Host header is missing
+                session.req_header().uri.authority().map(|a| a.as_str())
+            })
             .ok_or_else(|| Error::new(ErrorType::HTTPStatus(400)))?;
 
         // Parse host (remove port if present)
@@ -154,11 +159,11 @@ impl ProxyHttp for MyProxyService {
             host, backend_id, backend_address
         );
 
-        // Create HTTP peer with TLS enabled (backend connection)
+        // Create HTTP peer - backends use plain HTTP (TLS terminates at proxy)
         let peer = Box::new(HttpPeer::new(
             backend_address,
-            true, // Use TLS for backend connection
-            host.to_string(), // SNI for backend
+            false, // No TLS for backend connection (backends are plain HTTP)
+            "".to_string(), // No SNI needed for plain HTTP
         ));
 
         Ok(peer)

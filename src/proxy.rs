@@ -65,7 +65,13 @@ impl MyProxy {
             self.config.proxy.listen_addr_http.as_ref().map(|s| s.as_str()).unwrap_or("disabled")
         );
 
-        self.server = Some(my_server);
+        // Run the server in a blocking task to avoid runtime conflicts
+        // This blocks forever
+        info!("Proxy server running...");
+        tokio::task::spawn_blocking(move || {
+            my_server.run_forever();
+        }).await.unwrap();
+
         Ok(())
     }
 
