@@ -334,44 +334,48 @@ mod tests {
         let service = MyProxyService::new(state.clone(), cert_manager, 443);
 
         // Add test backends
-        let mut backends = state.backends.write().await;
-        backends.insert(
-            "backend1".to_string(),
-            Backend {
-                id: "backend1".to_string(),
-                address: "127.0.0.1:8080".to_string(),
-                tags: vec!["tag-a".to_string()],
-            },
-        );
-        backends.insert(
-            "backend2".to_string(),
-            Backend {
-                id: "backend2".to_string(),
-                address: "127.0.0.1:8081".to_string(),
-                tags: vec!["tag-a".to_string()],
-            },
-        );
+        {
+            let mut backends = state.backends.write().await;
+            backends.insert(
+                "backend1".to_string(),
+                Backend {
+                    id: "backend1".to_string(),
+                    address: "127.0.0.1:8080".to_string(),
+                    tags: vec!["tag-a".to_string()],
+                },
+            );
+            backends.insert(
+                "backend2".to_string(),
+                Backend {
+                    id: "backend2".to_string(),
+                    address: "127.0.0.1:8081".to_string(),
+                    tags: vec!["tag-a".to_string()],
+                },
+            );
+        } // Write lock released here
 
         // Set health status
-        let mut health = state.backend_health.write().await;
-        health.insert(
-            "backend1".to_string(),
-            BackendHealth {
-                healthy: true,
-                consecutive_failures: 0,
-                consecutive_successes: 5,
-                last_check: None,
-            },
-        );
-        health.insert(
-            "backend2".to_string(),
-            BackendHealth {
-                healthy: true,
-                consecutive_failures: 0,
-                consecutive_successes: 3,
-                last_check: None,
-            },
-        );
+        {
+            let mut health = state.backend_health.write().await;
+            health.insert(
+                "backend1".to_string(),
+                BackendHealth {
+                    healthy: true,
+                    consecutive_failures: 0,
+                    consecutive_successes: 5,
+                    last_check: None,
+                },
+            );
+            health.insert(
+                "backend2".to_string(),
+                BackendHealth {
+                    healthy: true,
+                    consecutive_failures: 0,
+                    consecutive_successes: 3,
+                    last_check: None,
+                },
+            );
+        } // Write lock released here
 
         // Test selection
         let vhost = VirtualHost {
@@ -394,27 +398,31 @@ mod tests {
         let service = MyProxyService::new(state.clone(), cert_manager, 443);
 
         // Add test backend
-        let mut backends = state.backends.write().await;
-        backends.insert(
-            "backend1".to_string(),
-            Backend {
-                id: "backend1".to_string(),
-                address: "127.0.0.1:8080".to_string(),
-                tags: vec!["tag-a".to_string()],
-            },
-        );
+        {
+            let mut backends = state.backends.write().await;
+            backends.insert(
+                "backend1".to_string(),
+                Backend {
+                    id: "backend1".to_string(),
+                    address: "127.0.0.1:8080".to_string(),
+                    tags: vec!["tag-a".to_string()],
+                },
+            );
+        } // Write lock released here
 
         // Set unhealthy status
-        let mut health = state.backend_health.write().await;
-        health.insert(
-            "backend1".to_string(),
-            BackendHealth {
-                healthy: false,
-                consecutive_failures: 5,
-                consecutive_successes: 0,
-                last_check: None,
-            },
-        );
+        {
+            let mut health = state.backend_health.write().await;
+            health.insert(
+                "backend1".to_string(),
+                BackendHealth {
+                    healthy: false,
+                    consecutive_failures: 5,
+                    consecutive_successes: 0,
+                    last_check: None,
+                },
+            );
+        } // Write lock released here
 
         // Test selection - should still return backend even if unhealthy
         let vhost = VirtualHost {
@@ -457,15 +465,17 @@ mod tests {
         let service = MyProxyService::new(state.clone(), cert_manager, 443);
 
         // Add test backend
-        let mut backends = state.backends.write().await;
-        backends.insert(
-            "backend1".to_string(),
-            Backend {
-                id: "backend1".to_string(),
-                address: "192.168.1.100:9000".to_string(),
-                tags: vec!["tag-a".to_string()],
-            },
-        );
+        {
+            let mut backends = state.backends.write().await;
+            backends.insert(
+                "backend1".to_string(),
+                Backend {
+                    id: "backend1".to_string(),
+                    address: "192.168.1.100:9000".to_string(),
+                    tags: vec!["tag-a".to_string()],
+                },
+            );
+        } // Write lock released here
 
         let address = service.get_backend_address("backend1").await;
         assert_eq!(address, Some("192.168.1.100:9000".to_string()));
