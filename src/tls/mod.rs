@@ -1,5 +1,9 @@
 // Certificate manager module for TLS certificate loading and caching
 
+pub mod acme_manager;
 pub mod certificate_manager;
+pub mod proxy_service;
 
+pub use acme_manager::{AcmeManager, ChallengeData};
 pub use certificate_manager::{CertificateManager, LoadedCertificate};
+pub use proxy_service::{MyProxyService, HttpRedirectService};
