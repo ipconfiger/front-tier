@@ -53,6 +53,16 @@ impl AcmeManager {
         Arc::clone(&self.challenges)
     }
 
+    /// Check if using Let's Encrypt staging environment
+    pub fn is_staging(&self) -> bool {
+        self.config.staging
+    }
+
+    /// Get the configured email address
+    pub fn email(&self) -> &str {
+        &self.config.email
+    }
+
     /// Obtain a certificate for one or more domains
     ///
     /// This performs the full ACME flow:

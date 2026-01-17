@@ -39,6 +39,7 @@ pub fn create_api_server(
                    .delete(backends::delete_backend))
         .route("/api/v1/certificates", get(certificates::list_certificates))
         .route("/api/v1/certificates/:domain/reload", post(certificates::reload_certificate))
+        .route("/api/v1/certificates/obtain", post(certificates::obtain_certificate))
         .route("/api/v1/metrics", get(metrics_handler))
         .with_state((state, metrics, cert_manager));
 

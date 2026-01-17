@@ -45,10 +45,31 @@ async fn main() -> Result<()> {
     info!("Starting Pingora Virtual Host Proxy...");
 
     // Initialize state from config
-    let state = Arc::new(state::AppState::from_config(
+    let mut state = state::AppState::from_config(
         config.virtual_hosts.clone(),
         config.backends.clone(),
-    ).await);
+    ).await;
+
+    // Initialize ACME manager if Let's Encrypt is configured
+    let acme_manager = if let Some(lets_encrypt_config) = &config.lets_encrypt {
+        info!("Let's Encrypt configured, initializing ACME manager");
+        let manager = Arc::new(tls::AcmeManager::new(lets_encrypt_config.clone()));
+
+        // Share ACME challenge storage with state
+        state.acme_challenges = Arc::clone(&manager.challenges());
+
+        Some(manager)
+    } else {
+        info!("Let's Encrypt not configured");
+        None
+    };
+
+    // Add ACME manager to state
+    if let Some(manager) = acme_manager {
+        state = state.with_acme_manager(manager);
+    }
+
+    let state = Arc::new(state);
 
     // Initialize certificate manager
     let cert_manager = Arc::new(tls::certificate_manager::CertificateManager::new(

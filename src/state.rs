@@ -1,5 +1,5 @@
 use crate::config::{Backend, VirtualHost};
-use crate::tls::ChallengeData;
+use crate::tls::{ChallengeData, AcmeManager};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -22,6 +22,8 @@ pub struct AppState {
     /// ACME challenge storage for Let's Encrypt domain verification
     /// Maps challenge token to challenge data (key_auth, domain, expires_at)
     pub acme_challenges: Arc<RwLock<HashMap<String, ChallengeData>>>,
+    /// ACME manager for Let's Encrypt certificate issuance (present if configured)
+    pub acme_manager: Option<Arc<AcmeManager>>,
 }
 
 impl Default for AppState {
@@ -31,6 +33,7 @@ impl Default for AppState {
             backends: Arc::new(RwLock::new(HashMap::new())),
             backend_health: Arc::new(RwLock::new(HashMap::new())),
             acme_challenges: Arc::new(RwLock::new(HashMap::new())),
+            acme_manager: None,
         }
     }
 }
@@ -66,6 +69,13 @@ impl AppState {
             backends: Arc::new(RwLock::new(backend_map)),
             backend_health: Arc::new(RwLock::new(health_map)),
             acme_challenges: Arc::new(RwLock::new(HashMap::new())),
+            acme_manager: None,
         }
+    }
+
+    /// Set the ACME manager (call this after creating AppState if Let's Encrypt is configured)
+    pub fn with_acme_manager(mut self, acme_manager: Arc<AcmeManager>) -> Self {
+        self.acme_manager = Some(acme_manager);
+        self
     }
 }
