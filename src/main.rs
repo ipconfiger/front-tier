@@ -1,6 +1,7 @@
 use anyhow::Result;
 use tracing::info;
 
+mod backend_pool;
 mod config;
 mod observability;
 mod state;
