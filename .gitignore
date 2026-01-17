@@ -1,0 +1,5 @@
+/target
+config.toml
+*.log
+ certs/
+.DS_Store

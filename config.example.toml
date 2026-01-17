@@ -1,0 +1,65 @@
+[proxy]
+listen = "0.0.0.0:8080"
+threads = 4
+client_timeout_secs = 30
+
+[management]
+listen = "127.0.0.1:9090"
+api_token = "change-me-in-production"
+enable_tls = false
+cert_path = ""
+key_path = ""
+
+[vhosts.example.com]
+domain = "example.com"
+
+[[vhosts.example.com.routes]]
+path_prefix = "/api"
+backend_id = "backend1"
+
+[[vhosts.example.com.routes]]
+path_prefix = "/"
+backend_id = "backend2"
+
+[[vhosts.example.com.backends]]
+id = "backend1"
+address = "192.168.1.10"
+port = 8080
+weight = 1
+
+[vhosts.example.com.backends.health_check]
+path = "/health"
+interval_secs = 10
+timeout_secs = 5
+unhealthy_threshold = 3
+healthy_threshold = 3
+
+[[vhosts.example.com.backends]]
+id = "backend2"
+address = "192.168.1.11"
+port = 8080
+weight = 1
+
+[vhosts.example.com.backends.health_check]
+path = "/health"
+interval_secs = 10
+timeout_secs = 5
+unhealthy_threshold = 3
+healthy_threshold = 3
+
+[vhosts.example.com.tls]
+enabled = true
+cert_type = "rsa"
+cert_path = ""
+key_path = ""
+
+[vhosts.example.com.tls.lets_encrypt]
+email = "admin@example.com"
+staging = false
+cache_dir = "./certs/le"
+
+[vhosts.example.com.ab_test]
+header_name = "X-AB-Test"
+header_value_a = "A"
+header_value_b = "B"
+percentage_b = 50
