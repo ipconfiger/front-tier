@@ -19,7 +19,11 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
 tracing-appender = "0.2"
 rustls = "0.21"
+rustls-pemfile = "1.0"
 acme-lib = "0.8"
+pingora-rustls = { git = "https://github.com/cloudflare/pingora" }
+x509-parser = "0.15"
+notify = "6.0"
 anyhow = "1.0"
 thiserror = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
