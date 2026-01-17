@@ -4,6 +4,7 @@ use std::net::SocketAddr;
 use tracing::info;
 use crate::state::AppState;
 use crate::api::domains;
+use crate::api::backends;
 
 /// Create the API server router with all routes
 pub fn create_api_server(bind_addr: &str) -> Result<(SocketAddr, Router)> {
@@ -22,6 +23,11 @@ pub fn create_api_server(bind_addr: &str) -> Result<(SocketAddr, Router)> {
                    .put(domains::update_domain)
                    .delete(domains::delete_domain))
         .route("/api/v1/domains/:domain/switch", post(domains::switch_domain_tag))
+        .route("/api/v1/backends", get(backends::list_backends).post(backends::add_backend))
+        .route("/api/v1/backends/:id",
+               get(backends::get_backend)
+                   .put(backends::update_backend)
+                   .delete(backends::delete_backend))
         .with_state(state)
         .layer(tower_http::cors::CorsLayer::permissive());
 
