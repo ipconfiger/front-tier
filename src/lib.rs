@@ -1,3 +1,4 @@
+pub mod api;
 pub mod backend_pool;
 pub mod config;
 pub mod health_check;
