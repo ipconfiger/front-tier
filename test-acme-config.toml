@@ -1,0 +1,43 @@
+# Test configuration for Let's Encrypt ACME integration
+# IMPORTANT: This requires a real domain with DNS pointing to your server
+
+[proxy]
+listen_addr = "0.0.0.0:443"
+listen_addr_http = "0.0.0.0:80"
+management_api_addr = "127.0.0.1:8080"
+
+[lets_encrypt]
+email = "your-email@example.com"  # CHANGE THIS to your email
+staging = true  # Use staging for testing (set to false for production)
+cache_dir = "/tmp/acme-certs"  # Where certificates will be stored
+
+[logging]
+level = "debug"
+format = "text"
+output = "console"
+
+[metrics]
+enabled = true
+listen_addr = "0.0.0.0:9090"
+
+[health_check]
+interval_secs = 10
+timeout_secs = 5
+unhealthy_threshold = 3
+healthy_threshold = 2
+
+# Virtual host with Let's Encrypt certificate
+# IMPORTANT: Replace 'test.example.com' with your actual domain
+[[virtual_hosts]]
+domain = "test.example.com"  # CHANGE THIS to your domain
+enabled_backends_tag = "test"
+http_to_https = true
+tls_enabled = true
+[virtual_hosts.certificate_source]
+type = "lets_encrypt"  # Will automatically obtain certificate
+
+# Test backend
+[[backends]]
+id = "test-backend-1"
+address = "127.0.0.1:3000"
+tags = ["test"]
