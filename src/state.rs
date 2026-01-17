@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct BackendHealth {
     pub healthy: bool,
     pub consecutive_failures: u32,
@@ -41,10 +41,16 @@ impl AppState {
             .map(|b| (b.id.clone(), b))
             .collect();
 
+        // Initialize backend health with default values for each backend
+        let health_map: HashMap<String, BackendHealth> = backend_map
+            .keys()
+            .map(|id| (id.clone(), BackendHealth::default()))
+            .collect();
+
         Self {
             virtual_hosts: Arc::new(RwLock::new(vh_map)),
             backends: Arc::new(RwLock::new(backend_map)),
-            backend_health: Arc::new(RwLock::new(HashMap::new())),
+            backend_health: Arc::new(RwLock::new(health_map)),
         }
     }
 }

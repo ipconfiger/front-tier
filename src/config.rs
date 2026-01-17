@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use anyhow::{Context, Result};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Config {
@@ -88,8 +88,19 @@ pub struct Backend {
     pub tags: Vec<String>,
 }
 
-pub fn load_config(path: &str) -> Result<Config, Box<dyn std::error::Error>> {
-    let contents = std::fs::read_to_string(path)?;
-    let config: Config = toml::from_str(&contents)?;
+pub fn load_config(path: &str) -> Result<Config> {
+    let contents = std::fs::read_to_string(path)
+        .with_context(|| format!("Failed to read config file: {}", path))?;
+
+    let config: Config = toml::from_str(&contents)
+        .with_context(|| format!("Failed to parse config file: {}", path))?;
+
+    // Validate config has at least some content
+    if config.virtual_hosts.is_empty() && config.backends.is_empty() {
+        anyhow::bail!(
+            "Config validation failed: must have at least one virtual_host or backend"
+        );
+    }
+
     Ok(config)
 }
