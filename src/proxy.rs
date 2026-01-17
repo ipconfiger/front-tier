@@ -5,12 +5,14 @@ use pingora::prelude::*;
 use std::sync::Arc;
 use tracing::info;
 
+#[allow(dead_code)]
 pub struct MyProxy {
     server: Option<Server>,
     config: Config,
     state: Arc<AppState>,
 }
 
+#[allow(dead_code)]
 impl MyProxy {
     pub fn new(config: Config, state: Arc<AppState>) -> Self {
         Self {

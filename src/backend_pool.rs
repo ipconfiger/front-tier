@@ -6,11 +6,13 @@ use tokio::sync::RwLock;
 
 /// Thread-safe backend pool with tag-based lookup
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct BackendPool {
     backends: Arc<RwLock<HashMap<String, Backend>>>,
     tag_index: Arc<RwLock<HashMap<String, Vec<String>>>>,
 }
 
+#[allow(dead_code)]
 impl BackendPool {
     /// Create a new empty backend pool
     pub fn new() -> Self {

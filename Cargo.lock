@@ -1518,6 +1518,7 @@ dependencies = [
  "anyhow",
  "axum",
  "chrono",
+ "clap",
  "http-body-util",
  "pingora",
  "prometheus",

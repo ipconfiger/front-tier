@@ -14,14 +14,17 @@ pub struct DomainStats {
     pub avg_latency_ms: f64,
 }
 
+#[allow(dead_code)]
 pub struct MetricsCollector {
     registry: Registry,
     request_count: IntCounter,
     request_duration: Histogram,
+    #[allow(dead_code)]
     active_connections: IntGauge,
     domain_stats: Arc<RwLock<HashMap<String, DomainStats>>>,
 }
 
+#[allow(dead_code)]
 impl MetricsCollector {
     pub fn new() -> Self {
         let registry = Registry::new();
@@ -43,7 +46,7 @@ impl MetricsCollector {
             "Number of active connections"
         ).unwrap();
 
-        registry.register(Box::new(request_count.clone())).unwrap();
+            registry.register(Box::new(request_count.clone())).unwrap();
         registry.register(Box::new(request_duration.clone())).unwrap();
         registry.register(Box::new(active_connections.clone())).unwrap();
 
@@ -69,7 +72,7 @@ impl MetricsCollector {
         });
 
         domain_stat.total_requests += 1;
-        if status >= 200 && status < 400 {
+        if (200..400).contains(&status) {
             domain_stat.success_requests += 1;
         } else {
             domain_stat.error_requests += 1;

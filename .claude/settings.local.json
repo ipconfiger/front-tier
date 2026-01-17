@@ -15,7 +15,19 @@
       "Bash(cargo clippy:*)",
       "Bash(cargo run:*)",
       "Bash(cargo build:*)",
-      "Bash(cargo +nightly uddu:*)"
+      "Bash(cargo +nightly uddu:*)",
+      "Bash(tree:*)",
+      "Bash(cargo fmt:*)",
+      "Bash(cargo doc:*)",
+      "Bash(cargo audit:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(RUST_BACKTRACE=1 cargo test:*)",
+      "Bash(test:*)",
+      "Bash(grep:*)",
+      "Bash(cargo:*)",
+      "Bash(cargo read-manifest:*)",
+      "Bash(git show:*)"
     ]
   }
 }

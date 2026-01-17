@@ -6,6 +6,7 @@ use tracing::debug;
 
 /// Health status of a backend
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum HealthStatus {
     /// Backend is healthy and can receive traffic
     Healthy,
@@ -17,6 +18,7 @@ pub enum HealthStatus {
 
 /// Health check state for a single backend
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct BackendHealthState {
     /// Current consecutive successful checks
     consecutive_successes: u32,
@@ -28,6 +30,7 @@ struct BackendHealthState {
     last_check: DateTime<Utc>,
 }
 
+#[allow(dead_code)]
 impl BackendHealthState {
     fn new() -> Self {
         Self {
@@ -66,6 +69,7 @@ impl BackendHealthState {
 /// Tracks consecutive successes/failures and determines health status
 /// based on configurable thresholds.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct HealthChecker {
     /// Number of consecutive successes required to mark backend as healthy
     healthy_threshold: u32,
@@ -78,6 +82,7 @@ pub struct HealthChecker {
     backends: Arc<RwLock<HashMap<String, BackendHealthState>>>,
 }
 
+#[allow(dead_code)]
 impl HealthChecker {
     /// Create a new health checker
     ///
