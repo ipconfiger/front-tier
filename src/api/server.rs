@@ -1,5 +1,5 @@
 use anyhow::Result;
-use axum::{routing::get, Router};
+use axum::{routing::{get, post}, Router};
 use std::net::SocketAddr;
 use tracing::info;
 use crate::state::AppState;
@@ -21,6 +21,7 @@ pub fn create_api_server(bind_addr: &str) -> Result<(SocketAddr, Router)> {
                get(domains::get_domain)
                    .put(domains::update_domain)
                    .delete(domains::delete_domain))
+        .route("/api/v1/domains/:domain/switch", post(domains::switch_domain_tag))
         .with_state(state)
         .layer(tower_http::cors::CorsLayer::permissive());
 
