@@ -151,43 +151,29 @@ impl CertificateWatcher {
         // Spawn background task to handle events
         let handle = tokio::spawn(async move {
             let mut pending_reloads: HashMap<String, tokio::time::Instant> = HashMap::new();
+            let debounce_duration = self.debounce_duration;
 
-            // Receive events in a loop
-            while let Ok(event) = rx.recv() {
-                debug!("Received file event: {:?}", event);
-
-                // Process event paths
-                for path in event.paths {
-                    let path_str = path.to_string_lossy().to_string();
-
-                    // Check if this path is being watched
-                    let domain = {
-                        let watched = self.watched_paths.lock().await;
-                        watched.get(&path_str).cloned()
-                    };
-
-                    if let Some(domain) = domain {
-                        // Check if event is relevant (Create, Modify, Remove)
-                        match event.kind {
-                            EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_) => {
-                                debug!("File change detected for domain {}: {:?}", domain, event.kind);
-
-                                // Record pending reload with timestamp
-                                pending_reloads.insert(domain.clone(), tokio::time::Instant::now());
-                            }
-                            _ => {
-                                // Ignore other events (Access, etc.)
-                                debug!("Ignoring event kind: {:?}", event.kind);
-                            }
-                        }
+            // Convert mpsc receiver to async channel for select!
+            let (async_tx, mut async_rx) = tokio::sync::mpsc::unbounded_channel();
+            std::thread::spawn(move || {
+                while let Ok(event) = rx.recv() {
+                    if let Err(e) = async_tx.send(event) {
+                        error!("Failed to send event to async handler: {}", e);
+                        break;
                     }
                 }
+            });
 
-                // If we have pending reloads, process them after debounce
-                if !pending_reloads.is_empty() {
-                    // Sleep for debounce duration
-                    sleep(self.debounce_duration).await;
+            // Event processing loop with proper debouncing
+            loop {
+                // Calculate time since last event
+                let oldest_event_time: Option<tokio::time::Instant> = pending_reloads.values().min().copied();
+                let time_since_last_event = oldest_event_time
+                    .map(|instant| instant.elapsed())
+                    .unwrap_or(debounce_duration * 2);
 
+                // If we have pending events and debounce period has elapsed
+                if !pending_reloads.is_empty() && time_since_last_event >= debounce_duration {
                     // Process all pending reloads
                     let domains_to_reload: Vec<String> = pending_reloads.keys().cloned().collect();
                     pending_reloads.clear();
@@ -203,6 +189,64 @@ impl CertificateWatcher {
                                 error!("Failed to reload certificate for domain {}: {}", domain, e);
                             }
                         }
+                    }
+                }
+
+                // Recalculate for timeout (after potential clear)
+                let oldest_event_time: Option<tokio::time::Instant> = pending_reloads.values().min().copied();
+
+                // Wait for next event with timeout
+                let timeout_duration = if pending_reloads.is_empty() {
+                    debounce_duration * 2 // Long timeout if no pending events
+                } else {
+                    // Calculate remaining debounce time
+                    let elapsed = oldest_event_time.map(|i| i.elapsed()).unwrap_or(debounce_duration);
+                    debounce_duration.saturating_sub(elapsed)
+                };
+
+                tokio::select! {
+                    // New event received
+                    event = async_rx.recv() => {
+                        match event {
+                            Some(event) => {
+                                debug!("Received file event: {:?}", event);
+
+                                // Process event paths
+                                for path in event.paths {
+                                    let path_str = path.to_string_lossy().to_string();
+
+                                    // Check if this path is being watched
+                                    let domain = {
+                                        let watched = self.watched_paths.lock().await;
+                                        watched.get(&path_str).cloned()
+                                    };
+
+                                    if let Some(domain) = domain {
+                                        // Check if event is relevant (Create, Modify, Remove)
+                                        match event.kind {
+                                            EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_) => {
+                                                debug!("File change detected for domain {}: {:?}", domain, event.kind);
+
+                                                // Record pending reload with timestamp (resets debounce timer)
+                                                pending_reloads.insert(domain.clone(), tokio::time::Instant::now());
+                                            }
+                                            _ => {
+                                                // Ignore other events (Access, etc.)
+                                                debug!("Ignoring event kind: {:?}", event.kind);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            None => {
+                                warn!("Event channel closed, terminating watcher");
+                                break;
+                            }
+                        }
+                    }
+                    // Timeout reached - loop will check if debounce elapsed and process if ready
+                    _ = tokio::time::sleep(timeout_duration) => {
+                        // Continue to top of loop to check if debounce period elapsed
                     }
                 }
             }
