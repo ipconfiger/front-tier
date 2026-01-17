@@ -6,9 +6,16 @@ use http_body_util::BodyExt;
 use serde_json::Value;
 use tower::ServiceExt;
 
+// Helper function to create API server with fresh state
+fn create_test_api_server() -> (String, axum::Router) {
+    let state = pingora_vhost::state::AppState::new();
+    let (addr, app) = pingora_vhost::api::server::create_api_server("127.0.0.1:0", state).unwrap();
+    (addr.to_string(), app)
+}
+
 #[tokio::test]
 async fn test_list_domains_empty() {
-    let (_, app) = pingora_vhost::api::server::create_api_server("127.0.0.1:0").unwrap();
+    let (_, app) = create_test_api_server();
 
     let response = app
         .oneshot(
@@ -31,7 +38,7 @@ async fn test_list_domains_empty() {
 
 #[tokio::test]
 async fn test_add_domain() {
-    let (_, app) = pingora_vhost::api::server::create_api_server("127.0.0.1:0").unwrap();
+    let (_, app) = create_test_api_server();
 
     let body = r#"{"domain":"test.com","enabled_backends_tag":"a"}"#;
     let response = app
@@ -58,7 +65,7 @@ async fn test_add_domain() {
 
 #[tokio::test]
 async fn test_add_domain_duplicate() {
-    let (_, app) = pingora_vhost::api::server::create_api_server("127.0.0.1:0").unwrap();
+    let (_, app) = create_test_api_server();
 
     let body = r#"{"domain":"test.com","enabled_backends_tag":"a"}"#;
 
@@ -94,7 +101,7 @@ async fn test_add_domain_duplicate() {
 
 #[tokio::test]
 async fn test_get_domain() {
-    let (_, app) = pingora_vhost::api::server::create_api_server("127.0.0.1:0").unwrap();
+    let (_, app) = create_test_api_server();
 
     // First add a domain
     let body = r#"{"domain":"test.com","enabled_backends_tag":"a"}"#;
@@ -134,7 +141,7 @@ async fn test_get_domain() {
 
 #[tokio::test]
 async fn test_get_domain_not_found() {
-    let (_, app) = pingora_vhost::api::server::create_api_server("127.0.0.1:0").unwrap();
+    let (_, app) = create_test_api_server();
 
     let response = app
         .oneshot(
@@ -152,7 +159,7 @@ async fn test_get_domain_not_found() {
 
 #[tokio::test]
 async fn test_update_domain_partial() {
-    let (_, app) = pingora_vhost::api::server::create_api_server("127.0.0.1:0").unwrap();
+    let (_, app) = create_test_api_server();
 
     // First add a domain
     let body = r#"{"domain":"test.com","enabled_backends_tag":"a","http_to_https":true}"#;
@@ -195,7 +202,7 @@ async fn test_update_domain_partial() {
 
 #[tokio::test]
 async fn test_update_domain_not_found() {
-    let (_, app) = pingora_vhost::api::server::create_api_server("127.0.0.1:0").unwrap();
+    let (_, app) = create_test_api_server();
 
     let body = r#"{"enabled_backends_tag":"b"}"#;
     let response = app
@@ -215,7 +222,7 @@ async fn test_update_domain_not_found() {
 
 #[tokio::test]
 async fn test_delete_domain() {
-    let (_, app) = pingora_vhost::api::server::create_api_server("127.0.0.1:0").unwrap();
+    let (_, app) = create_test_api_server();
 
     // First add a domain
     let body = r#"{"domain":"test.com","enabled_backends_tag":"a"}"#;
@@ -249,7 +256,7 @@ async fn test_delete_domain() {
 
 #[tokio::test]
 async fn test_delete_domain_not_found() {
-    let (_, app) = pingora_vhost::api::server::create_api_server("127.0.0.1:0").unwrap();
+    let (_, app) = create_test_api_server();
 
     let response = app
         .oneshot(
@@ -267,7 +274,7 @@ async fn test_delete_domain_not_found() {
 
 #[tokio::test]
 async fn test_switch_domain_tag() {
-    let (_, app) = pingora_vhost::api::server::create_api_server("127.0.0.1:0").unwrap();
+    let (_, app) = create_test_api_server();
 
     // First add a domain
     let body = r#"{"domain":"test.com","enabled_backends_tag":"a"}"#;
@@ -309,7 +316,7 @@ async fn test_switch_domain_tag() {
 
 #[tokio::test]
 async fn test_switch_domain_tag_not_found() {
-    let (_, app) = pingora_vhost::api::server::create_api_server("127.0.0.1:0").unwrap();
+    let (_, app) = create_test_api_server();
 
     let body = r#"{"new_tag":"b"}"#;
     let response = app

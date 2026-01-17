@@ -5,9 +5,16 @@ use axum::{
 use serde_json::Value;
 use tower::ServiceExt;
 
+// Helper function to create API server with fresh state
+fn create_test_api_server() -> (String, axum::Router) {
+    let state = pingora_vhost::state::AppState::new();
+    let (addr, app) = pingora_vhost::api::server::create_api_server("127.0.0.1:0", state).unwrap();
+    (addr.to_string(), app)
+}
+
 #[tokio::test]
 async fn test_list_backends_empty() {
-    let (_, app) = pingora_vhost::api::server::create_api_server("127.0.0.1:0").unwrap();
+    let (_, app) = create_test_api_server();
 
     let response = app
         .oneshot(
@@ -30,7 +37,7 @@ async fn test_list_backends_empty() {
 
 #[tokio::test]
 async fn test_add_backend() {
-    let (_, app) = pingora_vhost::api::server::create_api_server("127.0.0.1:0").unwrap();
+    let (_, app) = create_test_api_server();
 
     let body = r#"{"id":"backend1","address":"192.168.1.10:8080","tags":["a"]}"#;
     let response = app
@@ -57,7 +64,7 @@ async fn test_add_backend() {
 
 #[tokio::test]
 async fn test_add_backend_duplicate() {
-    let (_, app) = pingora_vhost::api::server::create_api_server("127.0.0.1:0").unwrap();
+    let (_, app) = create_test_api_server();
 
     let body = r#"{"id":"backend1","address":"192.168.1.10:8080","tags":["a"]}"#;
 
@@ -93,7 +100,7 @@ async fn test_add_backend_duplicate() {
 
 #[tokio::test]
 async fn test_get_backend() {
-    let (_, app) = pingora_vhost::api::server::create_api_server("127.0.0.1:0").unwrap();
+    let (_, app) = create_test_api_server();
 
     // First add a backend
     let body = r#"{"id":"backend1","address":"192.168.1.10:8080","tags":["a"]}"#;
@@ -134,7 +141,7 @@ async fn test_get_backend() {
 
 #[tokio::test]
 async fn test_get_backend_not_found() {
-    let (_, app) = pingora_vhost::api::server::create_api_server("127.0.0.1:0").unwrap();
+    let (_, app) = create_test_api_server();
 
     let response = app
         .oneshot(
@@ -152,7 +159,7 @@ async fn test_get_backend_not_found() {
 
 #[tokio::test]
 async fn test_update_backend_partial() {
-    let (_, app) = pingora_vhost::api::server::create_api_server("127.0.0.1:0").unwrap();
+    let (_, app) = create_test_api_server();
 
     // First add a backend
     let body = r#"{"id":"backend1","address":"192.168.1.10:8080","tags":["a","b"]}"#;
@@ -195,7 +202,7 @@ async fn test_update_backend_partial() {
 
 #[tokio::test]
 async fn test_update_backend_not_found() {
-    let (_, app) = pingora_vhost::api::server::create_api_server("127.0.0.1:0").unwrap();
+    let (_, app) = create_test_api_server();
 
     let body = r#"{"address":"192.168.1.11:9090"}"#;
     let response = app
@@ -215,7 +222,7 @@ async fn test_update_backend_not_found() {
 
 #[tokio::test]
 async fn test_delete_backend() {
-    let (_, app) = pingora_vhost::api::server::create_api_server("127.0.0.1:0").unwrap();
+    let (_, app) = create_test_api_server();
 
     // First add a backend
     let body = r#"{"id":"backend1","address":"192.168.1.10:8080","tags":["a"]}"#;
@@ -249,7 +256,7 @@ async fn test_delete_backend() {
 
 #[tokio::test]
 async fn test_delete_backend_not_found() {
-    let (_, app) = pingora_vhost::api::server::create_api_server("127.0.0.1:0").unwrap();
+    let (_, app) = create_test_api_server();
 
     let response = app
         .oneshot(
@@ -267,7 +274,7 @@ async fn test_delete_backend_not_found() {
 
 #[tokio::test]
 async fn test_list_backends_multiple() {
-    let (_, app) = pingora_vhost::api::server::create_api_server("127.0.0.1:0").unwrap();
+    let (_, app) = create_test_api_server();
 
     // Add multiple backends
     let body1 = r#"{"id":"backend1","address":"192.168.1.10:8080","tags":["a"]}"#;

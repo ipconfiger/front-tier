@@ -7,12 +7,9 @@ use crate::api::domains;
 use crate::api::backends;
 
 /// Create the API server router with all routes
-pub fn create_api_server(bind_addr: &str) -> Result<(SocketAddr, Router)> {
+pub fn create_api_server(bind_addr: &str, state: AppState) -> Result<(SocketAddr, Router)> {
     // Parse the bind address
     let addr: SocketAddr = bind_addr.parse()?;
-
-    // Create application state
-    let state = AppState::new();
 
     // Build the router with CORS support
     let app = Router::new()
@@ -55,7 +52,8 @@ mod tests {
 
     #[test]
     fn test_create_api_server_valid_addr() {
-        let result = create_api_server("127.0.0.1:0");
+        let state = AppState::new();
+        let result = create_api_server("127.0.0.1:0", state);
         assert!(result.is_ok());
         let (addr, _app) = result.unwrap();
         assert_eq!(addr.port(), 0);
@@ -63,7 +61,8 @@ mod tests {
 
     #[test]
     fn test_create_api_server_invalid_addr() {
-        let result = create_api_server("invalid");
+        let state = AppState::new();
+        let result = create_api_server("invalid", state);
         assert!(result.is_err());
     }
 }
