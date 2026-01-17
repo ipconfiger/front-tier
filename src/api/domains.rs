@@ -4,8 +4,10 @@ use axum::{
     response::{IntoResponse, Json},
 };
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use crate::config::VirtualHost;
 use crate::state::AppState;
+use crate::observability::metrics::MetricsCollector;
 use tracing::info;
 
 /// Request payload for adding a domain
@@ -58,7 +60,7 @@ impl From<VirtualHost> for DomainResponse {
 }
 
 /// GET /api/v1/domains - List all domains
-pub async fn list_domains(State(state): State<AppState>) -> Result<Json<Vec<DomainResponse>>, StatusCode> {
+pub async fn list_domains(State((state, _)): State<(AppState, Arc<MetricsCollector>)>) -> Result<Json<Vec<DomainResponse>>, StatusCode> {
     let vhosts = state.virtual_hosts.read().await;
     let domains: Vec<DomainResponse> = vhosts
         .values()
@@ -71,7 +73,7 @@ pub async fn list_domains(State(state): State<AppState>) -> Result<Json<Vec<Doma
 
 /// POST /api/v1/domains - Add a new domain
 pub async fn add_domain(
-    State(state): State<AppState>,
+    State((state, _)): State<(AppState, Arc<MetricsCollector>)>,
     Json(req): Json<DomainRequest>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let mut vhosts = state.virtual_hosts.write().await;
@@ -92,7 +94,7 @@ pub async fn add_domain(
 
 /// GET /api/v1/domains/:domain - Get a specific domain
 pub async fn get_domain(
-    State(state): State<AppState>,
+    State((state, _)): State<(AppState, Arc<MetricsCollector>)>,
     Path(domain): Path<String>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let vhosts = state.virtual_hosts.read().await;
@@ -111,7 +113,7 @@ pub async fn get_domain(
 
 /// PUT /api/v1/domains/:domain - Update a domain (partial update supported)
 pub async fn update_domain(
-    State(state): State<AppState>,
+    State((state, _)): State<(AppState, Arc<MetricsCollector>)>,
     Path(domain): Path<String>,
     Json(req): Json<UpdateDomainRequest>,
 ) -> Result<impl IntoResponse, StatusCode> {
@@ -141,7 +143,7 @@ pub async fn update_domain(
 
 /// DELETE /api/v1/domains/:domain - Delete a domain
 pub async fn delete_domain(
-    State(state): State<AppState>,
+    State((state, _)): State<(AppState, Arc<MetricsCollector>)>,
     Path(domain): Path<String>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let mut vhosts = state.virtual_hosts.write().await;
@@ -166,7 +168,7 @@ pub struct SwitchTagRequest {
 
 /// POST /api/v1/domains/:domain/switch - Switch backend tag for AB testing
 pub async fn switch_domain_tag(
-    State(state): State<AppState>,
+    State((state, _)): State<(AppState, Arc<MetricsCollector>)>,
     Path(domain): Path<String>,
     Json(req): Json<SwitchTagRequest>,
 ) -> Result<impl IntoResponse, StatusCode> {

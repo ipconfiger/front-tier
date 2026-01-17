@@ -1,15 +1,18 @@
 use anyhow::Result;
-use axum::{routing::{get, post}, Router};
+use axum::{routing::{get, post}, Router, response::Response, extract::State};
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tracing::info;
 use crate::state::AppState;
 use crate::api::domains;
 use crate::api::backends;
+use crate::observability::metrics::MetricsCollector;
 
 /// Create the API server router with all routes
 pub fn create_api_server(bind_addr: &str, state: AppState) -> Result<(SocketAddr, Router)> {
     // Parse the bind address
     let addr: SocketAddr = bind_addr.parse()?;
+    let metrics = Arc::new(MetricsCollector::new());
 
     // Build the router with CORS support
     let app = Router::new()
@@ -25,7 +28,8 @@ pub fn create_api_server(bind_addr: &str, state: AppState) -> Result<(SocketAddr
                get(backends::get_backend)
                    .put(backends::update_backend)
                    .delete(backends::delete_backend))
-        .with_state(state)
+        .route("/api/v1/metrics", get(metrics_handler))
+        .with_state((state, metrics))
         .layer(tower_http::cors::CorsLayer::permissive());
 
     info!("API server configured to bind on {}", addr);
@@ -44,6 +48,11 @@ pub async fn run_api_server(addr: SocketAddr, app: Router) -> Result<()> {
 /// Basic health check endpoint
 async fn health_check() -> &'static str {
     "OK"
+}
+
+/// Prometheus metrics endpoint
+async fn metrics_handler(State((_, metrics)): State<(AppState, Arc<MetricsCollector>)>) -> Response {
+    Response::new(axum::body::Body::from(metrics.export_metrics()))
 }
 
 #[cfg(test)]

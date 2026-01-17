@@ -4,8 +4,10 @@ use axum::{
     response::{IntoResponse, Json},
 };
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use crate::config::Backend;
 use crate::state::AppState;
+use crate::observability::metrics::MetricsCollector;
 use tracing::info;
 
 /// Request payload for adding a backend
@@ -52,7 +54,7 @@ impl From<Backend> for BackendResponse {
 }
 
 /// GET /api/v1/backends - List all backends
-pub async fn list_backends(State(state): State<AppState>) -> Result<Json<Vec<BackendResponse>>, StatusCode> {
+pub async fn list_backends(State((state, _)): State<(AppState, Arc<MetricsCollector>)>) -> Result<Json<Vec<BackendResponse>>, StatusCode> {
     let backends = state.backends.read().await;
     let backend_list: Vec<BackendResponse> = backends
         .values()
@@ -65,7 +67,7 @@ pub async fn list_backends(State(state): State<AppState>) -> Result<Json<Vec<Bac
 
 /// POST /api/v1/backends - Add a new backend
 pub async fn add_backend(
-    State(state): State<AppState>,
+    State((state, _)): State<(AppState, Arc<MetricsCollector>)>,
     Json(req): Json<CreateBackendRequest>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let mut backends = state.backends.write().await;
@@ -86,7 +88,7 @@ pub async fn add_backend(
 
 /// GET /api/v1/backends/:id - Get a specific backend
 pub async fn get_backend(
-    State(state): State<AppState>,
+    State((state, _)): State<(AppState, Arc<MetricsCollector>)>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let backends = state.backends.read().await;
@@ -105,7 +107,7 @@ pub async fn get_backend(
 
 /// PUT /api/v1/backends/:id - Update a backend (partial update supported)
 pub async fn update_backend(
-    State(state): State<AppState>,
+    State((state, _)): State<(AppState, Arc<MetricsCollector>)>,
     Path(id): Path<String>,
     Json(req): Json<UpdateBackendRequest>,
 ) -> Result<impl IntoResponse, StatusCode> {
@@ -135,7 +137,7 @@ pub async fn update_backend(
 
 /// DELETE /api/v1/backends/:id - Delete a backend
 pub async fn delete_backend(
-    State(state): State<AppState>,
+    State((state, _)): State<(AppState, Arc<MetricsCollector>)>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let mut backends = state.backends.write().await;
