@@ -35,6 +35,33 @@ pub struct ObtainCertificateRequest {
     /// Optional additional domains (SANs)
     #[serde(default)]
     pub alt_names: Vec<String>,
+    /// Challenge type: "http-01" or "dns-01" (default: auto)
+    #[serde(default)]
+    pub challenge_type: Option<String>,
+}
+
+impl ObtainCertificateRequest {
+    /// Determine challenge type from request or configuration
+    fn resolve_challenge_type(&self, has_dns_provider: bool) -> &'static str {
+        match self.challenge_type.as_deref() {
+            Some("http-01") => "http-01",
+            Some("dns-01") => "dns-01",
+            Some("auto") | None => {
+                if has_dns_provider {
+                    "dns-01"
+                } else {
+                    "http-01"
+                }
+            }
+            _ => {  // Invalid values - treat as auto
+                if has_dns_provider {
+                    "dns-01"
+                } else {
+                    "http-01"
+                }
+            }
+        }
+    }
 }
 
 /// Response after obtaining certificate
@@ -155,7 +182,7 @@ pub async fn obtain_certificate(
         .obtain_certificate(domains.clone())
         .await
         .map_err(|e| {
-            error!("Failed to obtain certificate for domains {:?}: {}", domains, e);
+            error!("Failed to obtain certificate for domains {:?}: {:#}", domains, e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
@@ -164,16 +191,16 @@ pub async fn obtain_certificate(
         req.domain
     );
 
-    // Load the obtained certificate into the certificate manager
+    // Load and store the obtained certificate into the certificate manager
     cert_manager
-        .load_certificate_from_files(&cert_path, &key_path)
+        .load_and_store_certificate(&cert_path, &key_path)
         .await
         .map_err(|e| {
-            error!("Failed to load obtained certificate: {}", e);
+            error!("Failed to load and store obtained certificate: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-    info!("Certificate loaded successfully for domain: {}", req.domain);
+    info!("Certificate loaded and stored successfully for domain: {}", req.domain);
 
     // Check if using staging
     let staging = acme_manager.is_staging();
@@ -234,6 +261,7 @@ mod tests {
         let req = ObtainCertificateRequest {
             domain: "example.com".to_string(),
             alt_names: vec!["www.example.com".to_string(), "api.example.com".to_string()],
+            challenge_type: None,
         };
 
         let json = serde_json::to_string(&req).unwrap();
@@ -281,5 +309,41 @@ mod tests {
         assert_eq!(parsed.domain, "test.example.com");
         assert_eq!(parsed.alt_names.len(), 1);
         assert_eq!(parsed.alt_names[0], "www.test.example.com");
+    }
+
+    #[test]
+    fn test_obtain_certificate_request_with_challenge_type() {
+        let req = ObtainCertificateRequest {
+            domain: "example.com".to_string(),
+            alt_names: vec![],
+            challenge_type: Some("dns-01".to_string()),
+        };
+
+        assert_eq!(req.resolve_challenge_type(true), "dns-01");
+        assert_eq!(req.resolve_challenge_type(false), "dns-01");  // Explicit override
+    }
+
+    #[test]
+    fn test_obtain_certificate_request_auto_challenge() {
+        let req = ObtainCertificateRequest {
+            domain: "example.com".to_string(),
+            alt_names: vec![],
+            challenge_type: Some("auto".to_string()),
+        };
+
+        assert_eq!(req.resolve_challenge_type(true), "dns-01");
+        assert_eq!(req.resolve_challenge_type(false), "http-01");
+    }
+
+    #[test]
+    fn test_obtain_certificate_request_default_challenge() {
+        let req = ObtainCertificateRequest {
+            domain: "example.com".to_string(),
+            alt_names: vec![],
+            challenge_type: None,
+        };
+
+        assert_eq!(req.resolve_challenge_type(true), "dns-01");
+        assert_eq!(req.resolve_challenge_type(false), "http-01");
     }
 }
