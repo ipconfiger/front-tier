@@ -3,6 +3,7 @@
 pub mod acme_manager;
 pub mod certificate_manager;
 pub mod challenge_handler;
+pub mod dns_provider;
 pub mod proxy_service;
 pub mod watcher;
 
