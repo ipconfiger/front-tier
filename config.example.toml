@@ -4,9 +4,41 @@ listen_addr_http = "0.0.0.0:80"
 management_api_addr = "127.0.0.1:8080"
 
 [lets_encrypt]
+# Email address for Let's Encrypt account
 email = "admin@example.com"
+# Use staging environment (set to false for production certificates)
 staging = true
-cache_dir = "/etc/pingora-ssl/certs"
+# Directory to cache obtained certificates
+cache_dir = "./acme-certs"
+
+# DNS provider for DNS-01 challenge (optional, bypasses HTTP/ICP blocks)
+# Remove this section to use HTTP-01 challenge (requires port 80 access)
+# DNS-01 is recommended when:
+# - Port 80 is blocked or filtered
+# - ICP/ISP firewall restrictions
+# - Obtaining wildcard certificates
+
+# Aliyun (Alibaba Cloud) DNS
+[lets_encrypt.dns_provider]
+provider = "aliyun"
+access_key_id = "your-access-key-id"
+access_key_secret = "your-access-key-secret"
+
+# Cloudflare DNS (alternative)
+# [lets_encrypt.dns_provider]
+# provider = "cloudflare"
+# api_token = "your-cloudflare-api-token"
+
+# DNSPod (Tencent Cloud) DNS (alternative)
+# [lets_encrypt.dns_provider]
+# provider = "dnspod"
+# secret_id = "your-secret-id"
+# secret_key = "your-secret-key"
+
+# DNS propagation wait time (seconds)
+# How long to wait after creating TXT record before validation
+# Default: 30 seconds (adjust for slow DNS providers)
+dns_propagation_secs = 30
 
 [logging]
 level = "info"
@@ -28,6 +60,27 @@ healthy_threshold = 2
 domain = "example.com"
 enabled_backends_tag = "a"
 http_to_https = true
+tls_enabled = false
+
+# Example: File-based certificate (nginx-style .crt/.key)
+# [[virtual_hosts]]
+# domain = "secure.example.com"
+# enabled_backends_tag = "a"
+# http_to_https = true
+# tls_enabled = true
+# [virtual_hosts.certificate_source]
+# type = "file"
+# cert_path = "/etc/ssl/certs/secure.example.com.crt"
+# key_path = "/etc/ssl/private/secure.example.com.key"
+
+# Example: Let's Encrypt automatic certificate
+# [[virtual_hosts]]
+# domain = "auto-secure.example.com"
+# enabled_backends_tag = "a"
+# http_to_https = true
+# tls_enabled = true
+# [virtual_hosts.certificate_source]
+# type = "lets_encrypt"
 
 [[backends]]
 id = "web-v1"
