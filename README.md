@@ -14,6 +14,8 @@ A high-performance, configurable virtual host proxy built on Cloudflare's Pingor
 - **HTTP to HTTPS Redirect**: Optional automatic redirect for enhanced security
 - **Hot Certificate Reload**: Update certificates without downtime
 - **Certificate Management API**: Monitor and reload certificates via RESTful API
+- **Automatic Certificate Renewal**: Let's Encrypt certificates auto-renew before expiration
+- **Full Certificate Chain**: Proper certificate chain loading for complete TLS validation
 
 ## Quick Start
 
@@ -101,6 +103,9 @@ tags = ["b"]
 - `email`: Email for Let's Encrypt account (required for automatic certificates)
 - `staging`: Use Let's Encrypt staging environment (recommended for testing)
 - `cache_dir`: Directory to cache certificates
+- `renewal_check_interval_secs`: How often to check for certificate renewal (default: 86400 = daily)
+- `renewal_days_before_expiry`: Days before expiration to renew certificates (default: 30)
+- `dns_propagation_secs`: Seconds to wait for DNS propagation when using DNS-01 (default: 30)
 
 #### `[logging]`
 - `level`: Log level (trace, debug, info, warn, error)
@@ -184,6 +189,27 @@ type = "lets_encrypt"
 email = "admin@example.com"
 staging = true  # Use staging for testing, set false for production
 cache_dir = "/etc/pingora-ssl/certs"
+renewal_check_interval_secs = 86400  # Check daily (optional)
+renewal_days_before_expiry = 30      # Renew 30 days before expiry (optional)
+```
+
+**Automatic Certificate Renewal:**
+
+Let's Encrypt certificates are automatically renewed before expiration:
+
+- Background task checks certificate expiration periodically (default: daily)
+- Certificates are renewed when within the renewal window (default: 30 days before expiry)
+- Renewed certificates are automatically reloaded without service interruption
+- Only Let's Encrypt certificates are auto-renewed (file-based certificates show warnings)
+
+**Example:** Renew 1 day before expiration:
+```toml
+[lets_encrypt]
+email = "admin@example.com"
+staging = false
+cache_dir = "/etc/pingora-ssl/certs"
+renewal_check_interval_secs = 86400  # Check every 24 hours
+renewal_days_before_expiry = 1       # Renew 1 day before expiry
 ```
 
 ### DNS-01 Challenge (Recommended for China)
@@ -206,8 +232,8 @@ dns_propagation_secs = 30
 
 **Supported DNS providers:**
 - Aliyun (Alibaba Cloud) DNS
-- Cloudflare DNS (coming soon)
-- DNSPod (Tencent Cloud) DNS (coming soon)
+- Cloudflare DNS
+- DNSPod (Tencent Cloud) DNS
 
 **DNS-01 vs HTTP-01:**
 - DNS-01 works when port 80 is blocked
@@ -259,6 +285,32 @@ key_path = "/etc/ssl/private/blog.com.key"
 ```
 
 Each domain presents its own certificate during TLS handshake.
+
+### Full Certificate Chain Support
+
+Let's Encrypt certificates include the complete certificate chain:
+
+- End-entity certificate for your domain
+- Intermediate certificate from Let's Encrypt
+- Root certificate (implicitly trusted)
+
+This ensures proper TLS validation across all clients:
+
+```bash
+# Verify certificate chain is complete
+openssl s_client -connect example.com:443 -servername example.com
+
+# Expected output depth:
+# depth=2: ISRG Root X1 (root)
+# depth=1: Let's Encrypt E8 (intermediate)
+# depth=0: example.com (end-entity)
+# Verify return code: 0 (ok)
+```
+
+The proxy automatically loads and serves the full certificate chain during TLS handshake, ensuring:
+- Complete certificate validation
+- Compatibility with all browsers and clients
+- No security warnings about incomplete certificate chains
 
 ## API Endpoints
 
@@ -644,6 +696,47 @@ watch -n 3600 'curl -s http://127.0.0.1:8080/api/v1/certificates | jq ".[] | sel
    # Linux: install inotify-tools
    inotifywait -m /etc/ssl/certs/
    ```
+
+#### Automatic Certificate Renewal Issues
+
+**Problem:** Certificates not renewing automatically
+
+**Solutions:**
+1. Check renewal manager is running in logs:
+   ```
+   Starting automatic certificate renewal (check every 86400s, renew 1 days before expiry)
+   ```
+2. Verify Let's Encrypt configuration includes `certificate_source = { type = "lets_encrypt" }`
+3. Check certificate expiration via API:
+   ```bash
+   curl http://127.0.0.1:8080/api/v1/certificates
+   ```
+4. Manual renewal test (will renew if within window):
+   ```bash
+   # Trigger immediate check by restarting service
+   systemctl restart pingora-vhost
+   ```
+5. Review logs for ACME/DNS errors:
+   ```bash
+   journalctl -u pingora-vhost -f | grep -i renewal
+   ```
+
+**Problem:** Certificate expired before renewal
+
+**Solutions:**
+1. Renewal window might be too short - increase `renewal_days_before_expiry`
+2. Check renewal interval - ensure `renewal_check_interval_secs` is reasonable (default: daily)
+3. Verify service has been running continuously (not restarted during renewal window)
+
+**Example configuration for aggressive renewal:**
+```toml
+[lets_encrypt]
+email = "admin@example.com"
+staging = false
+cache_dir = "/etc/pingora-ssl/certs"
+renewal_check_interval_secs = 43200  # Check every 12 hours
+renewal_days_before_expiry = 7       # Renew 7 days before expiry
+```
 
 ### Health Check Failures
 
