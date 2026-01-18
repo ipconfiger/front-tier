@@ -1,8 +1,10 @@
 //! DNS provider abstraction for ACME DNS-01 challenge validation
 
 pub mod aliyun;
+pub mod factory;
 
 pub use aliyun::AliyunDnsProvider;
+pub use factory::create_dns_provider;
 
 use anyhow::Result;
 use async_trait::async_trait;
