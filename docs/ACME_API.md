@@ -35,7 +35,8 @@ Obtains a new SSL/TLS certificate from Let's Encrypt for one or more domains.
 ```json
 {
   "domain": "example.com",
-  "alt_names": ["www.example.com", "api.example.com"]
+  "alt_names": ["www.example.com", "api.example.com"],
+  "challenge_type": "auto"
 }
 ```
 
@@ -43,6 +44,7 @@ Obtains a new SSL/TLS certificate from Let's Encrypt for one or more domains.
 |-------|------|----------|-------------|
 | `domain` | string | Yes | Primary domain for the certificate |
 | `alt_names` | array | No | Additional domains (Subject Alternative Names) |
+| `challenge_type` | string | No | Challenge type: "auto", "http-01", or "dns-01" (default: "auto") |
 
 #### Response (Success - 200)
 
@@ -117,6 +119,39 @@ curl -X POST http://localhost:8080/api/v1/certificates/obtain \
   -H "Content-Type: application/json" \
   -d '{"domain": "example.com"}' \
   | jq '.'
+```
+
+## DNS-01 Challenge
+
+### Request with DNS-01
+
+```bash
+curl -X POST http://localhost:8080/api/v1/certificates/obtain \
+  -H "Content-Type: application/json" \
+  -d '{
+    "domain": "example.com",
+    "challenge_type": "dns-01"
+  }'
+```
+
+### Challenge Types
+
+- `auto` (default): Automatically select based on configuration
+- `http-01`: Force HTTP-01 challenge (requires port 80)
+- `dns-01`: Force DNS-01 challenge (requires DNS provider)
+
+### Response
+
+Same as HTTP-01, includes certificate paths:
+
+```json
+{
+  "message": "Certificate obtained successfully for domain: example.com (0 alt names)",
+  "domain": "example.com",
+  "cert_path": "/root/acme-certs/example.com.crt",
+  "key_path": "/root/acme-certs/example.com.key",
+  "staging": true
+}
 ```
 
 ## What Happens During Certificate Issuance
@@ -237,6 +272,7 @@ The certificate will be automatically used for TLS connections to that domain.
 
 ## See Also
 
+- [DNS-01 Challenge Documentation](./DNS01_CHALLENGE.md)
 - [ACME Integration Test Documentation](./ACME_INTEGRATION_TEST.md)
 - [Certificate Management API](./API.md)
 - [Configuration Guide](./configuration.md)

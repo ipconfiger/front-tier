@@ -186,6 +186,34 @@ staging = true  # Use staging for testing, set false for production
 cache_dir = "/etc/pingora-ssl/certs"
 ```
 
+### DNS-01 Challenge (Recommended for China)
+
+If your server is in China or port 80 is blocked by ICP/ISP firewalls, use DNS-01 challenge validation:
+
+```toml
+[lets_encrypt]
+email = "admin@example.com"
+staging = true
+cache_dir = "./acme-certs"
+
+[lets_encrypt.dns_provider]
+provider = "aliyun"
+access_key_id = "your-access-key-id"
+access_key_secret = "your-access-key-secret"
+
+dns_propagation_secs = 30
+```
+
+**Supported DNS providers:**
+- Aliyun (Alibaba Cloud) DNS
+- Cloudflare DNS (coming soon)
+- DNSPod (Tencent Cloud) DNS (coming soon)
+
+**DNS-01 vs HTTP-01:**
+- DNS-01 works when port 80 is blocked
+- DNS-01 supports wildcard certificates
+- HTTP-01 is simpler but requires public HTTP access
+
 ### HTTP to HTTPS Redirect
 
 Automatically redirect HTTP traffic to HTTPS:
