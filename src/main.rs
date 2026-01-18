@@ -53,7 +53,7 @@ async fn main() -> Result<()> {
     // Initialize ACME manager if Let's Encrypt is configured
     let acme_manager = if let Some(lets_encrypt_config) = &config.lets_encrypt {
         info!("Let's Encrypt configured, initializing ACME manager");
-        let manager = Arc::new(tls::AcmeManager::new(lets_encrypt_config.clone()));
+        let manager = Arc::new(tls::AcmeManager::new(lets_encrypt_config.clone(), None));
 
         // Share ACME challenge storage with state
         state.acme_challenges = Arc::clone(&manager.challenges());

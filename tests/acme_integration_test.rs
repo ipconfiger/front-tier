@@ -23,7 +23,7 @@ async fn test_acme_manager_staging_connection() {
     config.email = "test@example.com".to_string();
     config.cache_dir = "/tmp/test_acme_staging".to_string();
 
-    let manager = AcmeManager::new(config);
+    let manager = AcmeManager::new(config, None);
 
     // Verify manager was created (check via challenges accessor)
     let challenges_store = manager.challenges();
@@ -62,7 +62,7 @@ async fn test_acme_certificate_paths() {
     config.email = "test@example.com".to_string();
     config.cache_dir = "/tmp/test_acme_paths".to_string();
 
-    let manager = AcmeManager::new(config);
+    let manager = AcmeManager::new(config, None);
 
     // Test certificate path generation
     // Note: These are internal methods, but we can verify the structure
@@ -79,7 +79,7 @@ async fn test_acme_challenge_cleanup() {
     config.email = "test@example.com".to_string();
     config.cache_dir = "/tmp/test_acme_cleanup".to_string();
 
-    let manager = AcmeManager::new(config);
+    let manager = AcmeManager::new(config, None);
 
     let challenges_store = manager.challenges();
 
@@ -126,7 +126,7 @@ async fn test_acme_certificate_expiration() {
     config.email = "test@example.com".to_string();
     config.cache_dir = "/tmp/test_acme_expiration".to_string();
 
-    let manager = AcmeManager::new(config);
+    let manager = AcmeManager::new(config, None);
 
     // Test getting expiration for non-existent certificate
     let result = manager.get_certificate_expiration("example.com");

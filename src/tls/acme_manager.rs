@@ -17,6 +17,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+use crate::tls::dns_provider::DnsProvider;
+
 /// HTTP-01 challenge data for serving challenges
 #[derive(Debug, Clone)]
 pub struct ChallengeData {
@@ -31,21 +33,28 @@ pub struct ChallengeData {
 }
 
 /// Manages ACME certificate operations with Let's Encrypt
-#[derive(Debug, Clone)]
 pub struct AcmeManager {
     /// Let's Encrypt configuration
     config: crate::config::LetEncryptConfig,
     /// Active challenge data (shared with HTTP challenge handler)
     challenges: Arc<RwLock<HashMap<String, ChallengeData>>>,
+    /// DNS provider for DNS-01 challenges (optional)
+    dns_provider: Option<Arc<dyn DnsProvider>>,
 }
 
 impl AcmeManager {
     /// Create a new ACME manager
-    pub fn new(config: crate::config::LetEncryptConfig) -> Self {
+    pub fn new(config: crate::config::LetEncryptConfig, dns_provider: Option<Arc<dyn DnsProvider>>) -> Self {
         Self {
             config,
             challenges: Arc::new(RwLock::new(HashMap::new())),
+            dns_provider,
         }
+    }
+
+    /// Determine if we should use DNS-01 or HTTP-01 challenge
+    fn should_use_dns_challenge(&self) -> bool {
+        self.dns_provider.is_some()
     }
 
     /// Get shared challenge data storage (for HTTP challenge handler)
@@ -217,7 +226,7 @@ impl AcmeManager {
         ))
     }
 
-    /// Process a single authorization (complete HTTP-01 challenge)
+    /// Process a single authorization (HTTP-01 or DNS-01 challenge)
     async fn process_authorization(&self, auth: &Auth<FilePersist>) -> Result<()> {
         let domain = auth.domain_name();
 
@@ -229,10 +238,17 @@ impl AcmeManager {
 
         tracing::info!("Processing authorization for domain: {}", domain);
 
-        // Get HTTP-01 challenge
-        let challenge = auth.http_challenge();
+        // Choose challenge type based on configuration
+        if self.should_use_dns_challenge() {
+            self.process_dns01_challenge(auth, domain).await
+        } else {
+            self.process_http01_challenge(auth, domain).await
+        }
+    }
 
-        // Get token and proof
+    /// Process HTTP-01 challenge
+    async fn process_http01_challenge(&self, auth: &Auth<FilePersist>, domain: &str) -> Result<()> {
+        let challenge = auth.http_challenge();
         let token = challenge.http_token().to_string();
         let proof = challenge.http_proof();
 
@@ -242,7 +258,6 @@ impl AcmeManager {
             token
         );
 
-        // Save challenge data for HTTP handler
         let challenge_data = ChallengeData {
             token: token.clone(),
             key_auth: proof.clone(),
@@ -250,7 +265,6 @@ impl AcmeManager {
             expires_at: Utc::now() + Duration::hours(1),
         };
 
-        // Store challenge data
         self.challenges.write().await.insert(token.clone(), challenge_data);
 
         tracing::info!(
@@ -259,12 +273,54 @@ impl AcmeManager {
             domain
         );
 
-        // Validate challenge (tells ACME server to start checking)
-        tracing::info!("Requesting challenge validation for token: {}", token);
-        challenge.validate(5000)
-            .context("Failed to validate challenge")?;
+        tracing::info!("Requesting HTTP-01 challenge validation for token: {}", token);
+        challenge.validate(5000).context("Failed to validate HTTP-01 challenge")?;
 
-        tracing::info!("Challenge validation requested successfully");
+        tracing::info!("HTTP-01 challenge validation requested successfully");
+        Ok(())
+    }
+
+    /// Process DNS-01 challenge
+    async fn process_dns01_challenge(&self, auth: &Auth<FilePersist>, domain: &str) -> Result<()> {
+        let dns_provider = self.dns_provider.as_ref()
+            .ok_or_else(|| anyhow!("DNS-01 challenge requested but no DNS provider configured"))?;
+
+        let challenge = auth.dns_challenge();
+
+        // Get the DNS key authorization
+        let key_auth = challenge.dns_proof();
+
+        tracing::info!(
+            "Got DNS-01 challenge for domain: {} (key_auth: {})",
+            domain,
+            key_auth
+        );
+
+        // Create TXT record
+        let acme_record = format!("_acme-challenge.{}", domain);
+        tracing::info!(
+            "Creating TXT record {} via {}",
+            acme_record,
+            dns_provider.provider_name()
+        );
+
+        dns_provider.create_txt_record(domain, &key_auth)
+            .await
+            .context("Failed to create TXT record")?;
+
+        // Wait for DNS propagation
+        let propagation_secs = self.config.dns_propagation_secs;
+        tracing::info!("Waiting {} seconds for DNS propagation", propagation_secs);
+        tokio::time::sleep(tokio::time::Duration::from_secs(propagation_secs)).await;
+
+        // Validate challenge
+        tracing::info!("Requesting DNS-01 challenge validation for domain: {}", domain);
+        challenge.validate(5000).context("Failed to validate DNS-01 challenge")?;
+
+        tracing::info!("DNS-01 challenge validation requested successfully");
+
+        // Keep track of created TXT records for cleanup (store in a separate map)
+        // We'll clean these up after certificate is obtained
 
         Ok(())
     }
@@ -348,7 +404,7 @@ mod tests {
     #[test]
     fn test_acme_manager_creation() {
         let config = create_test_config();
-        let manager = AcmeManager::new(config);
+        let manager = AcmeManager::new(config, None);
 
         assert_eq!(manager.config.email, "test@example.com");
         assert!(manager.config.staging);
@@ -357,7 +413,7 @@ mod tests {
     #[test]
     fn test_certificate_paths() {
         let config = create_test_config();
-        let manager = AcmeManager::new(config);
+        let manager = AcmeManager::new(config, None);
 
         let cert_path = manager.cert_path("example.com");
         let key_path = manager.key_path("example.com");
@@ -375,7 +431,7 @@ mod tests {
     #[test]
     fn test_certificate_exists() {
         let config = create_test_config();
-        let manager = AcmeManager::new(config);
+        let manager = AcmeManager::new(config, None);
 
         // Non-existent certificate
         assert!(!manager.certificate_exists("example.com"));
@@ -397,7 +453,7 @@ mod tests {
     #[tokio::test]
     async fn test_cleanup_expired_challenges() {
         let config = create_test_config();
-        let manager = AcmeManager::new(config);
+        let manager = AcmeManager::new(config, None);
 
         // Add an expired challenge
         let expired_challenge = ChallengeData {

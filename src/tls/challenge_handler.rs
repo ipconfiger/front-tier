@@ -37,14 +37,7 @@ use crate::tls::acme_manager::ChallengeData;
 ///
 /// # Integration
 /// The challenges Arc<RwLock<HashMap>> is obtained from AcmeManager::challenges()
-/// and must be registered with the axum router using:
-/// ```rust
-/// .route(
-///     "/.well-known/acme-challenge/:token",
-///     get(tls::handle_acme_challenge)
-/// )
-/// .with_state(challenges)
-/// ```
+/// and must be registered with the axum router.
 pub async fn handle_acme_challenge(
     Path(token): Path<String>,
     State(challenges): State<Arc<RwLock<HashMap<String, ChallengeData>>>>,
