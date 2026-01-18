@@ -43,6 +43,10 @@ pub struct LetEncryptConfig {
     pub dns_provider: Option<DnsProviderConfig>,
     #[serde(default)]
     pub dns_propagation_secs: u64,  // Default: 30 seconds
+    #[serde(default)]
+    pub renewal_check_interval_secs: Option<u64>,  // How often to check for renewal (optional)
+    #[serde(default)]
+    pub renewal_days_before_expiry: Option<u64>,  // Days before expiry to renew (optional)
 }
 
 impl Default for LetEncryptConfig {
@@ -53,6 +57,8 @@ impl Default for LetEncryptConfig {
             cache_dir: "./acme-certs".to_string(),
             dns_provider: None,
             dns_propagation_secs: 30,
+            renewal_check_interval_secs: None,
+            renewal_days_before_expiry: None,
         }
     }
 }

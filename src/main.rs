@@ -79,8 +79,8 @@ async fn main() -> Result<()> {
     };
 
     // Add ACME manager to state
-    if let Some(manager) = acme_manager {
-        state = state.with_acme_manager(manager);
+    if let Some(ref manager) = acme_manager {
+        state = state.with_acme_manager((*manager).clone());
     }
 
     let state = Arc::new(state);
@@ -126,6 +126,35 @@ async fn main() -> Result<()> {
                 error!("Failed to start certificate watcher: {}", e);
             }
         }
+    }
+
+    // Start automatic certificate renewal if Let's Encrypt is configured
+    if let Some(ref le_config) = config.lets_encrypt {
+        // Check if renewal is enabled (default: enabled if Let's Encrypt is configured)
+        let check_interval = le_config.renewal_check_interval_secs.unwrap_or(24 * 60 * 60);
+        let renewal_days = le_config.renewal_days_before_expiry.unwrap_or(30);
+
+        let renewal_config = tls::RenewalConfig {
+            check_interval_secs: check_interval,
+            renewal_days_before_expiry: renewal_days,
+        };
+
+        let renewal_manager = tls::RenewalManager::new(
+            cert_manager.clone(),
+            acme_manager.clone(),
+            renewal_config,
+        );
+
+        info!(
+            "Starting automatic certificate renewal (check every {}s, renew {} days before expiry)",
+            check_interval, renewal_days
+        );
+
+        tokio::spawn(async move {
+            if let Err(e) = renewal_manager.start().await {
+                error!("Certificate renewal manager failed: {}", e);
+            }
+        });
     }
 
     // Start proxy

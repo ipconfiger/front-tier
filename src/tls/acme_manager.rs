@@ -35,7 +35,7 @@ pub struct ChallengeData {
 /// Manages ACME certificate operations with Let's Encrypt
 pub struct AcmeManager {
     /// Let's Encrypt configuration
-    config: crate::config::LetEncryptConfig,
+    pub config: crate::config::LetEncryptConfig,
     /// Active challenge data (shared with HTTP challenge handler)
     challenges: Arc<RwLock<HashMap<String, ChallengeData>>>,
     /// DNS provider for DNS-01 challenges (optional)

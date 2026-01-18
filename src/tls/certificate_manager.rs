@@ -77,6 +77,32 @@ impl CertificateManager {
         })
     }
 
+    /// Load a certificate from PEM files and store it in the certificate cache
+    pub async fn load_and_store_certificate(
+        &self,
+        cert_path: &str,
+        key_path: &str,
+    ) -> Result<()> {
+        let loaded_cert = self
+            .load_certificate_from_files(cert_path, key_path)
+            .await?;
+
+        // Store certificate for each domain it covers
+        let mut certs = self.certificates.write().await;
+        for domain in &loaded_cert.domains {
+            certs.insert(domain.clone(), loaded_cert.clone());
+        }
+
+        tracing::info!(
+            "Loaded and stored certificate for domains {:?} from {} (expires: {})",
+            loaded_cert.domains,
+            cert_path,
+            loaded_cert.expires_at
+        );
+
+        Ok(())
+    }
+
     /// Parse a PEM-encoded certificate
     pub fn parse_certificate(pem: &str) -> Result<Certificate> {
         use rustls_pemfile::certs;
@@ -231,10 +257,79 @@ impl CertificateManager {
                     );
                 }
                 crate::config::CertificateSource::LetsEncrypt => {
-                    tracing::warn!(
-                        "Let's Encrypt certificates not yet implemented for domain: {}",
-                        vhost.domain
-                    );
+                    // Try to load Let's Encrypt certificate from cache directory
+                    if let Some(le_config) = &self._lets_encrypt_config {
+                        let cache_dir = &le_config.cache_dir;
+                        let domain = &vhost.domain;
+
+                        // Find certificate files in cache directory
+                        // Files are named: {id}_crt_{sanitized_domain}.crt and {id}_key_{sanitized_domain}.key
+                        let sanitized_domain = domain.replace('.', "_");
+
+                        // Look for cert files matching this domain
+                        let cert_files = fs::read_dir(cache_dir)
+                            .with_context(|| format!("Failed to read cache directory: {}", cache_dir))?;
+
+                        let mut found_cert = None;
+                        let mut found_key = None;
+
+                        for entry in cert_files {
+                            let entry = entry?;
+                            let file_name = entry.file_name().to_string_lossy().to_string();
+
+                            // Check if this file matches our domain
+                            if file_name.contains(&sanitized_domain) {
+                                if file_name.ends_with(".crt") {
+                                    found_cert = Some(entry.path().to_string_lossy().to_string());
+                                } else if file_name.ends_with(".key") {
+                                    found_key = Some(entry.path().to_string_lossy().to_string());
+                                }
+                            }
+                        }
+
+                        // If we found both cert and key, load them
+                        if let (Some(cert_path), Some(key_path)) = (found_cert, found_key) {
+                            tracing::info!(
+                                "Loading Let's Encrypt certificate for {} from {}",
+                                domain,
+                                cert_path
+                            );
+
+                            let loaded_cert = self
+                                .load_certificate_from_files(&cert_path, &key_path)
+                                .await
+                                .with_context(|| {
+                                    format!(
+                                        "Failed to load Let's Encrypt certificate for virtual host: {}",
+                                        vhost.domain
+                                    )
+                                })?;
+
+                            // Store certificate for each domain it covers
+                            let mut certs = self.certificates.write().await;
+                            for d in &loaded_cert.domains {
+                                certs.insert(d.clone(), loaded_cert.clone());
+                            }
+
+                            tracing::info!(
+                                "Loaded Let's Encrypt certificate for {} (domains: {:?}, expires: {})",
+                                vhost.domain,
+                                loaded_cert.domains,
+                                loaded_cert.expires_at
+                            );
+                        } else {
+                            tracing::warn!(
+                                "No cached Let's Encrypt certificate found for domain: {} (cache_dir: {})",
+                                vhost.domain,
+                                cache_dir
+                            );
+                        }
+                    } else {
+                        tracing::warn!(
+                            "Let's Encrypt certificates not yet implemented for domain: {}",
+                            vhost.domain
+                        );
+                    }
                 }
             }
         }
@@ -293,6 +388,12 @@ impl CertificateManager {
             .iter()
             .map(|(domain, cert)| (domain.clone(), cert.expires_at))
             .collect()
+    }
+
+    /// Get all certificates for renewal checking
+    pub async fn get_all_certificates(&self) -> HashMap<String, LoadedCertificate> {
+        let certs = self.certificates.read().await;
+        certs.clone()
     }
 }
 
