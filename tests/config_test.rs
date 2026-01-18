@@ -266,10 +266,11 @@ fn test_validate_tls_config_lets_encrypt_with_config() {
             listen_addr_http: Some("0.0.0.0:80".to_string()),
             management_api_addr: "127.0.0.1:8080".to_string(),
         },
-        lets_encrypt: Some(pingora_vhost::config::LetEncryptConfig {
-            email: "admin@example.com".to_string(),
-            staging: true,
-            cache_dir: "/etc/pingora-ssl/certs".to_string(),
+        lets_encrypt: Some({
+            let mut le_config = pingora_vhost::config::LetEncryptConfig::default();
+            le_config.email = "admin@example.com".to_string();
+            le_config.cache_dir = "/etc/pingora-ssl/certs".to_string();
+            le_config
         }),
         logging: pingora_vhost::config::LoggingConfig {
             level: "info".to_string(),

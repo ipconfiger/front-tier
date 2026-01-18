@@ -112,7 +112,10 @@ impl AcmeManager {
 
         // Create or load account
         let account = dir.account(&self.config.email)
-            .context("Failed to create/load ACME account")?;
+            .map_err(|e| {
+                tracing::error!("ACME account creation failed: {:#?}", e);
+                anyhow::anyhow!("Failed to create/load ACME account: {:#}", e)
+            })?;
 
         tracing::info!("Using ACME account with email: {}", self.config.email);
 
@@ -172,9 +175,36 @@ impl AcmeManager {
         let _cert = ord_cert.download_and_save_cert()
             .context("Failed to download certificate")?;
 
-        // Get certificate paths
-        let cert_path = self.cert_path(primary);
-        let key_path = self.key_path(primary);
+        // Find certificate and key files in cache directory
+        // acme_lib uses pattern: {account_id}_crt_{domain}.crt and {account_id}_key_{domain}.key
+        let entries = fs::read_dir(&self.config.cache_dir)
+            .context("Failed to read cache directory")?;
+
+        let mut cert_path = None;
+        let mut key_path = None;
+
+        // Sanitize domain name for file matching (replace dots with underscores)
+        let domain_escaped = primary.replace('.', "_");
+
+        for entry in entries {
+            let path = entry?.path();
+            let file_name = path.file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("");
+
+            // Match certificate file: *_crt_{domain}.crt
+            if file_name.contains("_crt_") && file_name.contains(&domain_escaped) && file_name.ends_with(".crt") {
+                cert_path = Some(path.clone());
+            }
+
+            // Match key file: *_key_{domain}.key
+            if file_name.contains("_key_") && file_name.contains(&domain_escaped) && file_name.ends_with(".key") {
+                key_path = Some(path.clone());
+            }
+        }
+
+        let cert_path = cert_path.ok_or_else(|| anyhow!("Certificate file not found for domain: {}", primary))?;
+        let key_path = key_path.ok_or_else(|| anyhow!("Private key file not found for domain: {}", primary))?;
 
         tracing::info!(
             "Successfully obtained certificate for domains: {:?}",
@@ -309,11 +339,10 @@ mod tests {
     use super::*;
 
     fn create_test_config() -> crate::config::LetEncryptConfig {
-        crate::config::LetEncryptConfig {
-            email: "test@example.com".to_string(),
-            staging: true,
-            cache_dir: "/tmp/test_acme_cache".to_string(),
-        }
+        let mut config = crate::config::LetEncryptConfig::default();
+        config.email = "test@example.com".to_string();
+        config.cache_dir = "/tmp/test_acme_cache".to_string();
+        config
     }
 
     #[test]

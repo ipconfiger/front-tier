@@ -19,11 +19,9 @@ use chrono::{Utc, Duration};
 #[tokio::test]
 async fn test_acme_manager_staging_connection() {
     // Test connecting to Let's Encrypt staging
-    let config = LetEncryptConfig {
-        email: "test@example.com".to_string(),
-        staging: true,  // Use staging
-        cache_dir: "/tmp/test_acme_staging".to_string(),
-    };
+    let mut config = LetEncryptConfig::default();
+    config.email = "test@example.com".to_string();
+    config.cache_dir = "/tmp/test_acme_staging".to_string();
 
     let manager = AcmeManager::new(config);
 
@@ -60,11 +58,9 @@ async fn test_acme_manager_staging_connection() {
 
 #[tokio::test]
 async fn test_acme_certificate_paths() {
-    let config = LetEncryptConfig {
-        email: "test@example.com".to_string(),
-        staging: true,
-        cache_dir: "/tmp/test_acme_paths".to_string(),
-    };
+    let mut config = LetEncryptConfig::default();
+    config.email = "test@example.com".to_string();
+    config.cache_dir = "/tmp/test_acme_paths".to_string();
 
     let manager = AcmeManager::new(config);
 
@@ -79,11 +75,9 @@ async fn test_acme_certificate_paths() {
 
 #[tokio::test]
 async fn test_acme_challenge_cleanup() {
-    let config = LetEncryptConfig {
-        email: "test@example.com".to_string(),
-        staging: true,
-        cache_dir: "/tmp/test_acme_cleanup".to_string(),
-    };
+    let mut config = LetEncryptConfig::default();
+    config.email = "test@example.com".to_string();
+    config.cache_dir = "/tmp/test_acme_cleanup".to_string();
 
     let manager = AcmeManager::new(config);
 
@@ -128,11 +122,9 @@ async fn test_acme_challenge_cleanup() {
 
 #[tokio::test]
 async fn test_acme_certificate_expiration() {
-    let config = LetEncryptConfig {
-        email: "test@example.com".to_string(),
-        staging: true,
-        cache_dir: "/tmp/test_acme_expiration".to_string(),
-    };
+    let mut config = LetEncryptConfig::default();
+    config.email = "test@example.com".to_string();
+    config.cache_dir = "/tmp/test_acme_expiration".to_string();
 
     let manager = AcmeManager::new(config);
 
@@ -154,11 +146,9 @@ async fn test_acme_certificate_expiration() {
 // #[tokio::test]
 // #[ignore]  // Run with: cargo test --test acme_integration_test -- --ignored
 // async fn test_full_acme_flow() {
-//     let config = LetEncryptConfig {
-//         email: "your-email@example.com".to_string(),
-//         staging: true,  // Always test with staging first!
-//         cache_dir: "/tmp/acme_test_certs".to_string(),
-//     };
+//     let mut config = LetEncryptConfig::default();
+//     config.email = "your-email@example.com".to_string();
+//     config.cache_dir = "/tmp/acme_test_certs".to_string();
 //
 //     let manager = AcmeManager::new(config);
 //
