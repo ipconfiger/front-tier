@@ -12,6 +12,8 @@ mod proxy;
 mod state;
 mod tls;
 
+use crate::tls::dns_provider::create_dns_provider;
+
 #[derive(Parser)]
 #[command(name = "pingora-vhost")]
 #[command(about = "Pingora-based virtual host proxy", long_about = None)]
@@ -53,7 +55,19 @@ async fn main() -> Result<()> {
     // Initialize ACME manager if Let's Encrypt is configured
     let acme_manager = if let Some(lets_encrypt_config) = &config.lets_encrypt {
         info!("Let's Encrypt configured, initializing ACME manager");
-        let manager = Arc::new(tls::AcmeManager::new(lets_encrypt_config.clone(), None));
+
+        // Create DNS provider if configured
+        let dns_provider = lets_encrypt_config.dns_provider.as_ref()
+            .map(|dns_config| {
+                create_dns_provider(dns_config).map_err(|e| {
+                    error!("Failed to create DNS provider: {}", e);
+                    e
+                })
+            })
+            .transpose()
+            .map(|provider| provider.map(|p| Arc::from(p)))?;
+
+        let manager = Arc::new(tls::AcmeManager::new(lets_encrypt_config.clone(), dns_provider));
 
         // Share ACME challenge storage with state
         state.acme_challenges = Arc::clone(&manager.challenges());
