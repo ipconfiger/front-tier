@@ -107,7 +107,7 @@ impl ProxyHttp for MyProxyService {
     async fn upstream_peer(
         &self,
         session: &mut Session,
-        ctx: &mut Self::CTX,
+        _ctx: &mut Self::CTX,
     ) -> Result<Box<HttpPeer>> {
         // Extract host from Host header (HTTP/1.1) or URI authority (HTTP/2)
         let host_header = session
@@ -174,7 +174,7 @@ impl ProxyHttp for MyProxyService {
         &self,
         session: &mut Session,
         upstream_request: &mut RequestHeader,
-        ctx: &mut Self::CTX,
+        _ctx: &mut Self::CTX,
     ) -> Result<()>
     where
         Self::CTX: Send + Sync,

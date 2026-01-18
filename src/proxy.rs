@@ -256,15 +256,6 @@ impl TlsAccept for SniCallback {
         };
 
         // Parse certificate and key
-        let cert_bytes = cert_pem.as_bytes();
-        let x509_cert = match X509::from_pem(cert_bytes) {
-            Ok(cert) => cert,
-            Err(e) => {
-                error!("Failed to parse certificate: {}", e);
-                return;
-            }
-        };
-
         let key_bytes = key_pem.as_bytes();
         let pkey = match PKey::private_key_from_pem(key_bytes) {
             Ok(key) => key,
@@ -274,15 +265,86 @@ impl TlsAccept for SniCallback {
             }
         };
 
-        // Set certificate and key for this TLS connection
+        // Parse the first certificate (end-entity) from PEM
+        let x509_cert = match X509::from_pem(cert_pem.as_bytes()) {
+            Ok(cert) => cert,
+            Err(e) => {
+                error!("Failed to parse certificate from PEM: {}", e);
+                return;
+            }
+        };
+
+        debug!("Parsed end-entity certificate");
+
+        // Set the end-entity certificate
         if let Err(e) = ext::ssl_use_certificate(ssl, &x509_cert) {
             error!("Failed to use certificate: {}", e);
             return;
         }
 
+        // Set private key
         if let Err(e) = ext::ssl_use_private_key(ssl, &pkey) {
             error!("Failed to use private key: {}", e);
             return;
+        }
+
+        // Try to parse and add additional certificates from the PEM as chain
+        // Find all certificates between BEGIN/END markers
+        let cert_count = cert_pem.matches("-----BEGIN CERTIFICATE-----").count();
+        debug!("Found {} certificates in PEM file", cert_count);
+
+        if cert_count > 1 {
+            // Skip the first certificate (already loaded as end-entity)
+            // Find the position after the first END CERTIFICATE marker
+            let first_end_pos = match cert_pem.find("-----END CERTIFICATE-----") {
+                Some(pos) => pos + "-----END CERTIFICATE-----".len(),
+                None => {
+                    error!("Could not find END CERTIFICATE marker");
+                    return;
+                }
+            };
+
+            let mut search_start = first_end_pos;
+
+            // Parse remaining certificates as intermediates
+            let mut chain_index = 0;
+            while search_start < cert_pem.len() {
+                // Find the next certificate block
+                let begin_pos = match cert_pem[search_start..].find("-----BEGIN CERTIFICATE-----") {
+                    Some(pos) => search_start + pos,
+                    None => break, // No more certificates
+                };
+
+                let end_pos = match cert_pem[begin_pos..].find("-----END CERTIFICATE-----") {
+                    Some(pos) => begin_pos + pos + "-----END CERTIFICATE-----".len(),
+                    None => {
+                        error!("Found BEGIN CERTIFICATE but no END CERTIFICATE for chain cert {}", chain_index);
+                        break;
+                    }
+                };
+
+                let cert_pem_block = &cert_pem[begin_pos..end_pos];
+                debug!("Parsing chain certificate {}: {} bytes", chain_index + 1, cert_pem_block.len());
+
+                match X509::from_pem(cert_pem_block.as_bytes()) {
+                    Ok(chain_cert) => {
+                        debug!("Successfully parsed chain certificate {}", chain_index + 1);
+                        if let Err(e) = ext::ssl_add_chain_cert(ssl, &chain_cert) {
+                            error!("Failed to add chain certificate {}: {}", chain_index, e);
+                            search_start = end_pos;
+                            chain_index += 1;
+                            continue;
+                        }
+                        info!("Added intermediate certificate {} to chain", chain_index + 1);
+                    }
+                    Err(e) => {
+                        error!("Failed to parse chain certificate {}: {}", chain_index, e);
+                    }
+                }
+
+                search_start = end_pos;
+                chain_index += 1;
+            }
         }
 
         info!("Successfully loaded certificate for domain: {}", servername);

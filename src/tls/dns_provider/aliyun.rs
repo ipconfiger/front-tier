@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use chrono::Utc;
 use reqwest::Client;
 use std::collections::HashMap;
-use tracing::{info, debug};
+use tracing::{info, debug, error};
 use base64::Engine as _;
 
 const ALIYUN_API_ENDPOINT: &str = "https://alidns.aliyuncs.com/";
@@ -53,7 +53,7 @@ impl AliyunDnsProvider {
         params.insert("Format".to_string(), "JSON".to_string());
         params.insert("Version".to_string(), "2015-01-09".to_string());
         params.insert("SignatureMethod".to_string(), "HMAC-SHA1".to_string());
-        params.insert("SignatureVersion".to_string(), "2.0".to_string());
+        params.insert("SignatureVersion".to_string(), "1.0".to_string());
         params.insert("SignatureNonce".to_string(), uuid::Uuid::new_v4().to_string());
         params.insert("Timestamp".to_string(), Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string());
 
@@ -61,24 +61,48 @@ impl AliyunDnsProvider {
         let mut sorted_keys: Vec<String> = params.keys().cloned().collect();
         sorted_keys.sort();
 
-        // Create canonical query string with RFC 3986 encoding
+        // DEBUG: Log all parameters before encoding
+        debug!("=== Aliyun Signature Debug ===");
+        debug!("Parameters (before encoding):");
+        for key in &sorted_keys {
+            debug!("  {} = {}", key, params[key]);
+        }
+
+        // Create canonical query string with full RFC 3986 encoding
         let canonical_query_string: String = sorted_keys
             .iter()
-            .map(|key| format!("{}={}", percent_encode(key), percent_encode(&params[key])))
+            .map(|key| {
+                format!("{}={}", percent_encode(key), percent_encode(&params[key]))
+            })
             .collect::<Vec<_>>()
             .join("&");
 
-        // Create string to sign (encode canonical query string again)
+        // DEBUG: Log canonical query string
+        debug!("Canonical query string: {}", canonical_query_string);
+
+        // Create string to sign (encode canonical query string)
         let string_to_sign = format!("GET&%2F&{}", percent_encode(&canonical_query_string));
+
+        // DEBUG: Log string to sign
+        debug!("String to sign: {}", string_to_sign);
+        debug!("String to sign (bytes): {:?}", string_to_sign.as_bytes());
 
         // Generate HMAC-SHA1 signature
         use hmac::{Hmac, Mac};
         type HmacSha1 = Hmac<sha1::Sha1>;
 
         let key = format!("{}&", self.access_key_secret);
+        debug!("HMAC key: {}&", self.access_key_id);
+        debug!("HMAC key (bytes): {:?}", key.as_bytes());
+
         let mut mac = HmacSha1::new_from_slice(key.as_bytes()).unwrap();
         mac.update(string_to_sign.as_bytes());
-        let signature = base64::engine::general_purpose::STANDARD.encode(mac.finalize().into_bytes());
+        let signature_bytes = mac.finalize().into_bytes();
+        let signature = base64::engine::general_purpose::STANDARD.encode(&signature_bytes);
+
+        // DEBUG: Log signature
+        debug!("Signature (Base64): {}", signature);
+        debug!("========================");
 
         signature
     }
@@ -90,9 +114,26 @@ impl AliyunDnsProvider {
         let signature = self.sign_request(&mut params);
         params.insert("Signature".to_string(), signature);
 
+        // Build URL manually with proper encoding
+        let mut sorted_keys: Vec<String> = params.keys().cloned().collect();
+        sorted_keys.sort();
+
+        let query_string: String = sorted_keys
+            .iter()
+            .map(|key| {
+                format!("{}={}", percent_encode(key), percent_encode(&params[key]))
+            })
+            .collect::<Vec<_>>()
+            .join("&");
+
+        let url = format!("{}?{}", ALIYUN_API_ENDPOINT.trim_end_matches('/'), query_string);
+
+        // DEBUG: Log the full URL
+        debug!("Request URL: {}", url);
+        info!("Making Aliyun API request: {}", action);
+
         let response = self.client
-            .get(ALIYUN_API_ENDPOINT)
-            .query(&params)
+            .get(&url)
             .send()
             .await
             .context("Failed to send request to Aliyun API")?;
@@ -100,6 +141,12 @@ impl AliyunDnsProvider {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
+
+            // DEBUG: Log error details
+            error!("Aliyun API error!");
+            error!("Status: {}", status);
+            error!("Response body: {}", body);
+
             return Err(anyhow!("Aliyun API returned error {}: {}", status, body));
         }
 
@@ -116,12 +163,17 @@ impl AliyunDnsProvider {
         let base_domain = extract_base_domain(domain);
         let record_name = format!("_acme-challenge.{}", domain);
 
+        // RR must be relative to the domain (not the full FQDN)
+        let rr = record_name
+            .strip_suffix(&format!(".{}", base_domain))
+            .unwrap_or(&record_name);
+
         let mut params = HashMap::new();
         params.insert("DomainName".to_string(), base_domain);
         params.insert("TypeKeyWord".to_string(), "TXT".to_string());
-        params.insert("RRKeyWord".to_string(), record_name.clone());
+        params.insert("RRKeyWord".to_string(), rr.to_string());
 
-        let response = self.make_request("DescribeSubDomainRecords", params).await?;
+        let response = self.make_request("DescribeDomainRecords", params).await?;
 
         if let Some(records) = response["DomainRecords"]["Record"].as_array() {
             for record in records {
@@ -154,9 +206,16 @@ impl DnsProvider for AliyunDnsProvider {
             return Ok(());
         }
 
+        // RR must be relative to the domain (not the full FQDN)
+        // For "_acme-challenge.front-tier.xrays.tech" with domain "xrays.tech",
+        // RR should be "_acme-challenge.front-tier"
+        let rr = record_name
+            .strip_suffix(&format!(".{}", base_domain))
+            .unwrap_or(&record_name);
+
         let mut params = HashMap::new();
         params.insert("DomainName".to_string(), base_domain);
-        params.insert("RR".to_string(), record_name);
+        params.insert("RR".to_string(), rr.to_string());
         params.insert("Type".to_string(), "TXT".to_string());
         params.insert("Value".to_string(), txt_value.to_string());
         params.insert("TTL".to_string(), "600".to_string());
